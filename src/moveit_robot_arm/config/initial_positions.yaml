@@ -1,0 +1,8 @@
+# Default initial positions for robot_arm_4_dof's ros2_control fake system
+
+initial_positions:
+  GRIPPER_JOINT: 0
+  JOINT_1: 0
+  JOINT_2: 0
+  JOINT_3: 0
+  JOINT_4: 0

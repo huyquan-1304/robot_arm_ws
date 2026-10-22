@@ -1,0 +1,58 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 100  # Hz
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    gripper_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+
+# [MOI] Chi phat 5 khop that len /joint_states
+# Cac khop mimic cua gripper bi plugin Gazebo dat ten co duoi _mimic, khong co trong URDF.
+# MoveIt nhan ten la nay trong trang thai bat dau se bao loi va khong quy hoach duoc.
+# robot_state_publisher va MoveIt tu tinh 5 khop mimic tu GRIPPER_JOINT theo the mimic trong URDF.
+joint_state_broadcaster:
+  ros__parameters:
+    joints:
+      - JOINT_1
+      - JOINT_2
+      - JOINT_3
+      - JOINT_4
+      - GRIPPER_JOINT
+    interfaces:
+      - position
+      - velocity
+
+
+arm_controller:
+  ros__parameters:
+    joints:
+      - JOINT_1
+      - JOINT_2
+      - JOINT_3
+      - JOINT_4
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    allow_partial_joints_goal: true
+
+
+gripper_controller:
+  ros__parameters:
+    # Chi dieu khien GRIPPER_JOINT (goc tay quay, rad). 5 khop con lai la mimic trong URDF
+    # 0.0 la dong, 0.6 la mo het
+    joints:
+      - GRIPPER_JOINT
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    allow_partial_joints_goal: true

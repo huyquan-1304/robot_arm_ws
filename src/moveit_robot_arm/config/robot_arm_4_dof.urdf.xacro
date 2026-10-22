@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="robot_arm_4_dof">
+
+  <xacro:arg name="initial_positions_file"
+    default="$(find moveit_robot_arm)/config/initial_positions.yaml"/>
+
+  <xacro:include filename="$(find robot_arm_4_dof)/urdf/robot_arm_4_dof.urdf.xacro"/>
+  <xacro:include filename="$(find moveit_robot_arm)/config/robot_arm_4_dof.ros2_control.xacro"/>
+
+  <xacro:robot_arm_4_dof_ros2_control
+    name="FakeSystem"
+    initial_positions_file="$(arg initial_positions_file)"/>
+
+</robot>

@@ -1,0 +1,122 @@
+<?xml version="1.0"?>
+<!--
+  Moi truong pick and place cho robot_arm_4_dof (Gazebo Harmonic, ROS 2 Jazzy)
+  Dat file tai: robot_arm_4_dof/worlds/pick_place.sdf
+
+  Quy uoc toa do (khung world, trung voi MoveIt):
+    Truc J1 tai (0, 0), cao 0.250 m. Huong truoc robot la +x, ben phai la -y.
+  Be A: truoc mat robot, tam (0.32, 0), 120 x 300 x 195 mm (canh dai vuong goc huong vuon tay)
+  Be B: ben phai robot, tam (0, -0.32), 300 x 120 x 195 mm
+  Vat: khoi lap phuong 40 mm, dat tren be A, tam (0.32, 0, 0.215)
+
+  Ten world "pick_place" phai trung voi WORLD_NAME trong simulation_robot.launch.py
+-->
+<sdf version="1.9">
+  <world name="pick_place">
+
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <!-- Cac plugin he thong ma empty.sdf co san. Thieu UserCommands thi khong dua robot vao duoc -->
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact"/>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!-- San -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>10 10</size></plane></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>10 10</size></plane></geometry>
+          <material>
+            <ambient>0.8 0.8 0.8 1</ambient>
+            <diffuse>0.8 0.8 0.8 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ===== Be A: truoc mat robot ===== -->
+    <model name="table_A">
+      <static>true</static>
+      <pose>0.32 0 0.0975 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.12 0.30 0.195</size></box></geometry>
+          <surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode></friction></surface>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.12 0.30 0.195</size></box></geometry>
+          <material>
+            <ambient>0.55 0.35 0.2 1</ambient>
+            <diffuse>0.55 0.35 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ===== Be B: ben phai robot ===== -->
+    <model name="table_B">
+      <static>true</static>
+      <pose>0 -0.32 0.0975 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.30 0.12 0.195</size></box></geometry>
+          <surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode></friction></surface>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.30 0.12 0.195</size></box></geometry>
+          <material>
+            <ambient>0.35 0.45 0.25 1</ambient>
+            <diffuse>0.35 0.45 0.25 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ===== Vat: lap phuong 40 mm, 50 g (khoi luong gia dinh, sua neu co so lieu that) ===== -->
+    <!-- Quan tinh lap phuong: I = m * a^2 / 6 = 0.05 * 0.04^2 / 6 = 1.333e-5 kg.m2 -->
+    <model name="cube">
+      <pose>0.32 0 0.215 0 0 0</pose>
+      <link name="link">
+        <inertial>
+          <mass>0.05</mass>
+          <inertia>
+            <ixx>1.333e-5</ixx><iyy>1.333e-5</iyy><izz>1.333e-5</izz>
+            <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
+          </inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry><box><size>0.04 0.04 0.04</size></box></geometry>
+          <surface>
+            <!-- Ma sat cao de kep giu bang ma sat -->
+            <friction><ode><mu>1.2</mu><mu2>1.2</mu2></ode></friction>
+            <contact><ode><kp>100000</kp><kd>10</kd><min_depth>0.0005</min_depth><max_vel>0.1</max_vel></ode></contact>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.04 0.04 0.04</size></box></geometry>
+          <material>
+            <ambient>0.85 0.1 0.1 1</ambient>
+            <diffuse>0.85 0.1 0.1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>

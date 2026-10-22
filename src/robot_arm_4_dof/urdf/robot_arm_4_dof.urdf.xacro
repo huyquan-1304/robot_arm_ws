@@ -1,0 +1,675 @@
+<?xml version="1.0"?>
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="robot_arm_4_dof">
+
+  <!-- ========================================================= -->
+  <!-- BAN CHO ROS 2 JAZZY + GAZEBO HARMONIC -->
+  <!-- use_gazebo = false (mac dinh): dung cho MoveIt demo, khong co khoi ros2_control Gazebo -->
+  <!-- use_gazebo = true: bat khoi ros2_control gz_ros2_control va plugin Gazebo Harmonic -->
+  <!-- ========================================================= -->
+  <xacro:arg name="use_gazebo" default="false"/>
+
+
+  <!-- ========================================================= -->
+  <!-- GRIPPER FIN RAY, CO CAU 4 KHAU BINH HANH, MESH THAT TU STL -->
+  <!-- Toa do lay tu STL, quy ve he LINK_4 (goc tai tam lo khop JOINT_4) -->
+  <!-- Mat bat gripper cua LINK_4 la mat phang x = 78.371 mm, kich thuoc 25 x 60 mm -->
+  <!-- Goc GRIPPER_BASE dat tai tam mat bat, y = 0, z = 13.345 mm -->
+  <!-- Mat phang chua 2 ngon nam o y = +13.5 mm so voi mat phang LINK_4 -->
+  <!-- Moi ngon treo bang 2 thanh song song (tay quay trong dai 33 mm, thanh ngoai dai 34 mm) -->
+  <!-- 2 banh rang an khop nen 2 ben quay nguoc chieu, 2 ngon mo deu va luon song song -->
+  <!-- Chi GRIPPER_JOINT duoc dieu khien, 5 khop con lai la mimic chay theo -->
+  <!-- ========================================================= -->
+
+  <!-- Tam mat bat gripper trong he LINK_4, don vi met -->
+  <xacro:property name="grip_face_x" value="0.078371"/>
+  <xacro:property name="grip_face_y" value="0.0"/>
+  <xacro:property name="grip_face_z" value="0.013345"/>
+
+  <!-- Goc quay tay quay khi mo het (rad). 0 la dong, 2 ngon cham nhau giua mat bat -->
+  <!-- 0.6 rad thi moi ngon dat ra 18.6 mm. CHUA CO SO DO THAT, sua theo co cau -->
+  <xacro:property name="grip_open_angle" value="1.141"/>
+  <!-- Noi rong gioi han khop mot chut de khop khong ket o bien gay rung -->
+  <xacro:property name="grip_limit_margin" value="0.02"/>
+  <xacro:property name="grip_effort" value="2.0"/>
+  <xacro:property name="grip_velocity" value="2.0"/>
+
+  <!-- Khoi luong de gripper tinh tu the tich STL (1.02 g/cm3). Neu de co servo that thi tang len -->
+  <xacro:property name="grip_base_mass" value="0.04966"/>
+
+
+  <!-- ========================================================= -->
+  <!-- MACRO TAO LINK -->
+  <!-- ========================================================= -->
+
+  <xacro:macro
+    name="make_link"
+    params="name mesh mass ixx iyy izz ixy ixz iyz origin_xyz rgba">
+
+    <link name="${name}">
+
+      <inertial>
+        <origin xyz="${origin_xyz}" rpy="0 0 0"/>
+        <mass value="${mass}"/>
+        <inertia
+          ixx="${ixx}"
+          iyy="${iyy}"
+          izz="${izz}"
+          ixy="${ixy}"
+          ixz="${ixz}"
+          iyz="${iyz}"/>
+      </inertial>
+
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="package://robot_arm_4_dof/meshes/${mesh}"/>
+        </geometry>
+        <material name="">
+          <color rgba="${rgba}"/>
+        </material>
+      </visual>
+
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="package://robot_arm_4_dof/meshes/${mesh}"/>
+        </geometry>
+      </collision>
+
+    </link>
+
+  </xacro:macro>
+
+
+  <!-- ========================================================= -->
+  <!-- MACRO THONG SO VAT LY GAZEBO CHO LINK -->
+  <!-- [JAZZY] Bo the mau Gazebo/... vi Gazebo Harmonic lay mau tu <visual><material> -->
+  <!-- [JAZZY] Bo kp, kd, minDepth, maxVel vi chi bo giai ODE dung, Harmonic mac dinh dung DART -->
+  <!-- Tham so color giu lai de cac dong goi macro phia duoi khong phai sua -->
+  <!-- ========================================================= -->
+
+  <xacro:macro
+    name="gazebo_link"
+    params="name color">
+
+    <gazebo reference="${name}">
+      <self_collide>false</self_collide>
+      <mu1>0.8</mu1>
+      <mu2>0.8</mu2>
+    </gazebo>
+
+  </xacro:macro>
+
+
+  <!-- ========================================================= -->
+  <!-- MACRO THONG SO VAT LY GAZEBO CHO JOINT -->
+  <!-- Hai the duoi day danh cho Gazebo Classic/ODE, Harmonic bo qua, giu lai khong anh huong -->
+  <!-- ========================================================= -->
+
+  <xacro:macro
+    name="gazebo_joint"
+    params="name">
+
+    <gazebo reference="${name}">
+      <implicitSpringDamper>true</implicitSpringDamper>
+      <provideFeedback>true</provideFeedback>
+    </gazebo>
+
+  </xacro:macro>
+
+
+  <!-- ========================================================= -->
+  <!-- MACRO KHOP CHO ROS2 CONTROL -->
+  <!-- ========================================================= -->
+
+  <xacro:macro
+    name="control_joint"
+    params="name initial:=0.0">
+
+    <joint name="${name}">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">${initial}</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+
+  </xacro:macro>
+
+
+  <!-- [JAZZY] Mimic doc tu the <mimic> trong URDF. Khop mimic chi duoc co state interface -->
+  <!-- Tham so mult giu lai cho khop voi cac dong goi, he so that nam trong the <mimic multiplier> -->
+  <xacro:macro
+    name="mimic_control_joint"
+    params="name mult">
+
+    <joint name="${name}">
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+
+  </xacro:macro>
+
+
+  <!-- ========================================================= -->
+  <!-- WORLD -->
+  <!-- ========================================================= -->
+
+  <link name="world"/>
+
+
+  <!-- ========================================================= -->
+  <!-- BASE LINK -->
+  <!-- ========================================================= -->
+
+  <xacro:make_link
+    name="base_link"
+    mesh="base_link.STL"
+    mass="2.13756581501033"
+    ixx="0.00446281750835748"
+    iyy="0.00990397404875466"
+    izz="0.0138898179140011"
+    ixy="-1.16297685620602E-07"
+    ixz="-2.19269245347853E-05"
+    iyz="3.69353321786601E-07"
+    origin_xyz="-0.0361911363940385 7.68209464105385E-06 -0.0733100701888367"
+    rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"
+  />
+
+  <!-- World -> Base -->
+  <!-- File URDF moi xuat theo truc Z huong len (JOINT_1 xoay quanh Z), nen khong xoay -->
+  <!-- z = 0.2 giu nhu file cu de phan de nam duoi goc toa do khong chim xuong san -->
+  <joint name="world_to_base" type="fixed">
+    <parent link="world"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0.2" rpy="0 0 0"/>
+  </joint>
+
+
+  <!-- ========================================================= -->
+  <!-- LINK 1 -->
+  <!-- ========================================================= -->
+
+  <xacro:make_link
+    name="LINK_1"
+    mesh="LINK_1.STL"
+    mass="0.300203978957691"
+    ixx="0.000202361108949247"
+    iyy="0.000322205876856537"
+    izz="0.000227849313062329"
+    ixy="-8.49700154808772E-07"
+    ixz="-8.62565979202644E-05"
+    iyz="-8.96444276733961E-07"
+    origin_xyz="0.0262680360960205 0.00936849816356077 0.0385186340588518"
+    rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"
+  />
+
+  <joint name="JOINT_1" type="revolute">
+    <origin xyz="0 0 0.0498" rpy="0 0 0"/>
+    <parent link="base_link"/>
+    <child link="LINK_1"/>
+    <axis xyz="0 0 -1"/>
+    <limit lower="-1.57" upper="1.57" effort="10" velocity="10"/>
+    <dynamics damping="0.05" friction="0.0"/>
+  </joint>
+
+
+  <!-- ========================================================= -->
+  <!-- LINK 2 -->
+  <!-- ========================================================= -->
+
+  <xacro:make_link
+    name="LINK_2"
+    mesh="LINK_2.STL"
+    mass="0.22616543710862"
+    ixx="0.00172816534876037"
+    iyy="7.87016673061041E-05"
+    izz="0.00178654798836788"
+    ixy="-8.39655178369909E-07"
+    ixz="4.02141351179285E-09"
+    iyz="-1.05918369473504E-08"
+    origin_xyz="9.97377047012027E-05 -0.0999401206655697 -0.00664432460836228"
+    rgba="1 1 1 1"
+  />
+
+  <joint name="JOINT_2" type="revolute">
+    <origin xyz="0.05 -0.020425 0.062" rpy="-1.5707963267949 0 0"/>
+    <parent link="LINK_1"/>
+    <child link="LINK_2"/>
+    <axis xyz="0 0 -1"/>
+    <limit lower="-2.618" upper="2.618" effort="10" velocity="10"/>
+    <dynamics damping="0.05" friction="0.0"/>
+  </joint>
+
+
+  <!-- ========================================================= -->
+  <!-- LINK 3 -->
+  <!-- ========================================================= -->
+
+  <xacro:make_link
+    name="LINK_3"
+    mesh="LINK_3.STL"
+    mass="0.28089697948474"
+    ixx="8.30377524821825E-05"
+    iyy="0.000501796992912529"
+    izz="0.000524464065541109"
+    ixy="3.23085942327299E-07"
+    ixz="4.2195120669867E-06"
+    iyz="-2.09350472695333E-07"
+    origin_xyz="0.0665688329589206 7.00383893746936E-05 0.0306161777190934"
+    rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"
+  />
+
+  <joint name="JOINT_3" type="revolute">
+    <origin xyz="0 -0.2 0.00179999999999997" rpy="0 0 0.349065850398867"/>
+    <parent link="LINK_2"/>
+    <child link="LINK_3"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-1.57" upper="1.57" effort="10" velocity="10"/>
+    <dynamics damping="0.05" friction="0.0"/>
+  </joint>
+
+
+  <!-- ========================================================= -->
+  <!-- LINK 4 -->
+  <!-- ========================================================= -->
+
+  <xacro:make_link
+    name="LINK_4"
+    mesh="LINK_4.STL"
+    mass="0.06452"
+    ixx="1.7004E-05"
+    iyy="7.0959E-05"
+    izz="7.4844E-05"
+    ixy="8.6595E-08"
+    ixz="-6.2201E-06"
+    iyz="-5.7601E-09"
+    origin_xyz="0.021089 4.4987E-05 -0.0042584"
+    rgba="0.79216 0.81961 0.93333 1"
+  />
+
+  <!-- Khop co tay, revolute gioi han +-1.57 rad theo thiet ke -->
+  <joint name="JOINT_4" type="revolute">
+    <origin xyz="0.17 0 -0.0018" rpy="0 0 1.2217"/>
+    <parent link="LINK_3"/>
+    <child link="LINK_4"/>
+    <axis xyz="0 0 -1"/>
+    <limit lower="-1.57" upper="1.57" effort="10" velocity="10"/>
+    <dynamics damping="0.05" friction="0.0"/>
+  </joint>
+
+
+  <!-- ========================================================= -->
+  <!-- GRIPPER -->
+  <!-- LINK_4 (fixed) GRIPPER_BASE -->
+  <!--   GRIPPER_BASE (GRIPPER_JOINT, dieu khien) R_CRANK (R_FINGER_JOINT, mimic) RG_FINGER -->
+  <!--   GRIPPER_BASE (R_BAR_JOINT, mimic) R_BAR -->
+  <!--   GRIPPER_BASE (L_CRANK_JOINT, mimic) L_CRANK (L_FINGER_JOINT, mimic) LG_FINGER -->
+  <!--   GRIPPER_BASE (L_BAR_JOINT, mimic) L_BAR -->
+  <!-- Mesh cua moi link da nam san trong he toa do khop cua link do -->
+  <!-- ========================================================= -->
+
+  <link name="GRIPPER_BASE">
+    <inertial>
+      <origin xyz="0.015149 -0.004647 0.000159" rpy="0 0 0"/>
+      <mass value="${grip_base_mass}"/>
+      <inertia
+        ixx="${grip_base_mass*3.574118e-04}"
+        iyy="${grip_base_mass*2.785059e-04}"
+        izz="${grip_base_mass*2.074104e-04}"
+        ixy="${grip_base_mass*5.437499e-06}"
+        ixz="${grip_base_mass*-2.919664e-07}"
+        iyz="${grip_base_mass*-1.268489e-06}"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://robot_arm_4_dof/meshes/GRIPPER_BASE.STL"/>
+      </geometry>
+      <material name="">
+        <color rgba="0.5 0.5 0.5 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://robot_arm_4_dof/meshes/GRIPPER_BASE.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- De gripper ap phang len mat bat cua LINK_4, khong xoay -->
+  <joint name="LINK_4_TO_GRIPPER_BASE" type="fixed">
+    <parent link="LINK_4"/>
+    <child link="GRIPPER_BASE"/>
+    <origin xyz="${grip_face_x} ${grip_face_y} ${grip_face_z}" rpy="0 0 0"/>
+  </joint>
+
+
+  <!-- ===== BEN +z ===== -->
+  <!-- Tay quay trong, gan voi banh rang co tay servo. Khop DUOC DIEU KHIEN -->
+  <!-- q duong thi dau tay quay di len +z, ngon mo ra -->
+  <xacro:property name="r_crank_mass" value="0.003535"/>
+  <link name="R_CRANK">
+    <inertial>
+      <origin xyz="0.010844 0.016335 0.000001" rpy="0 0 0"/>
+      <mass value="${r_crank_mass}"/>
+      <inertia
+        ixx="${r_crank_mass*2.353771e-05}"
+        iyy="${r_crank_mass*1.769451e-04}"
+        izz="${r_crank_mass*1.618742e-04}"
+        ixy="${r_crank_mass*4.240353e-06}"
+        ixz="${r_crank_mass*4.914225e-08}"
+        iyz="${r_crank_mass*3.176072e-10}"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://robot_arm_4_dof/meshes/R_CRANK.STL"/>
+      </geometry>
+      <material name="">
+        <color rgba="0.15 0.15 0.15 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://robot_arm_4_dof/meshes/R_CRANK.STL"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="GRIPPER_JOINT" type="revolute">
+    <parent link="GRIPPER_BASE"/>
+    <child link="R_CRANK"/>
+    <origin xyz="0.017000 0.000000 0.010000" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="${-grip_limit_margin}" upper="${grip_open_angle + grip_limit_margin}" effort="${grip_effort}" velocity="${grip_velocity}"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+
+  <!-- Ngon +z, xoay nguoc lai dung bang goc tay quay nen luon song song -->
+  <xacro:property name="rg_finger_mass" value="0.004240"/>
+  <link name="RG_FINGER">
+    <inertial>
+      <origin xyz="0.017540 0.012444 0.001013" rpy="0 0 0"/>
+      <mass value="${rg_finger_mass}"/>
+      <inertia
+        ixx="${rg_finger_mass*7.718029e-05}"
+        iyy="${rg_finger_mass*3.971914e-04}"
+        izz="${rg_finger_mass*3.359078e-04}"
+        ixy="${rg_finger_mass*-2.006264e-05}"
+        ixz="${rg_finger_mass*9.050043e-05}"
+        iyz="${rg_finger_mass*5.446229e-06}"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://robot_arm_4_dof/meshes/RG_FINGER.STL"/>
+      </geometry>
+      <material name="">
+        <color rgba="0.10 0.35 0.90 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://robot_arm_4_dof/meshes/RG_FINGER.STL"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="R_FINGER_JOINT" type="revolute">
+    <parent link="R_CRANK"/>
+    <child link="RG_FINGER"/>
+    <origin xyz="0.033000 0.000000 0.000000" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="${-grip_open_angle - grip_limit_margin}" upper="${grip_limit_margin}" effort="${grip_effort}" velocity="${grip_velocity}"/>
+    <mimic joint="GRIPPER_JOINT" multiplier="-1" offset="0"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+
+  <!-- Thanh ngoai +z, quay cung goc voi tay quay -->
+  <xacro:property name="r_bar_mass" value="0.001371"/>
+  <link name="R_BAR">
+    <inertial>
+      <origin xyz="0.017000 0.014750 0.000000" rpy="0 0 0"/>
+      <mass value="${r_bar_mass}"/>
+      <inertia
+        ixx="${r_bar_mass*7.142448e-06}"
+        iyy="${r_bar_mass*1.290707e-04}"
+        izz="${r_bar_mass*1.253032e-04}"
+        ixy="${r_bar_mass*-1.300540e-19}"
+        ixz="${r_bar_mass*-1.081672e-17}"
+        iyz="${r_bar_mass*-2.130351e-21}"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://robot_arm_4_dof/meshes/R_BAR.STL"/>
+      </geometry>
+      <material name="">
+        <color rgba="0.15 0.15 0.15 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://robot_arm_4_dof/meshes/R_BAR.STL"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="R_BAR_JOINT" type="revolute">
+    <parent link="GRIPPER_BASE"/>
+    <child link="R_BAR"/>
+    <origin xyz="0.008000 0.000000 0.026000" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="${-grip_limit_margin}" upper="${grip_open_angle + grip_limit_margin}" effort="${grip_effort}" velocity="${grip_velocity}"/>
+    <mimic joint="GRIPPER_JOINT" multiplier="1" offset="0"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+
+
+  <!-- ===== BEN -z, doi xung qua banh rang nen truc khop dao chieu ===== -->
+  <xacro:property name="l_crank_mass" value="0.003499"/>
+  <link name="L_CRANK">
+    <inertial>
+      <origin xyz="0.010409 0.015438 -0.000039" rpy="0 0 0"/>
+      <mass value="${l_crank_mass}"/>
+      <inertia
+        ixx="${l_crank_mass*2.157730e-05}"
+        iyy="${l_crank_mass*1.813431e-04}"
+        izz="${l_crank_mass*1.655682e-04}"
+        ixy="${l_crank_mass*1.613590e-06}"
+        ixz="${l_crank_mass*4.265951e-07}"
+        iyz="${l_crank_mass*-2.306308e-09}"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://robot_arm_4_dof/meshes/L_CRANK.STL"/>
+      </geometry>
+      <material name="">
+        <color rgba="0.15 0.15 0.15 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://robot_arm_4_dof/meshes/L_CRANK.STL"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="L_CRANK_JOINT" type="revolute">
+    <parent link="GRIPPER_BASE"/>
+    <child link="L_CRANK"/>
+    <origin xyz="0.017000 0.000000 -0.010142" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="${-grip_limit_margin}" upper="${grip_open_angle + grip_limit_margin}" effort="${grip_effort}" velocity="${grip_velocity}"/>
+    <mimic joint="GRIPPER_JOINT" multiplier="1" offset="0"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+
+  <xacro:property name="lg_finger_mass" value="0.004258"/>
+  <link name="LG_FINGER">
+    <inertial>
+      <origin xyz="0.017593 0.012448 -0.000741" rpy="0 0 0"/>
+      <mass value="${lg_finger_mass}"/>
+      <inertia
+        ixx="${lg_finger_mass*7.740724e-05}"
+        iyy="${lg_finger_mass*3.974602e-04}"
+        izz="${lg_finger_mass*3.359607e-04}"
+        ixy="${lg_finger_mass*-2.003695e-05}"
+        ixz="${lg_finger_mass*-9.063254e-05}"
+        iyz="${lg_finger_mass*-5.462800e-06}"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://robot_arm_4_dof/meshes/LG_FINGER.STL"/>
+      </geometry>
+      <material name="">
+        <color rgba="0.10 0.35 0.90 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://robot_arm_4_dof/meshes/LG_FINGER.STL"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="L_FINGER_JOINT" type="revolute">
+    <parent link="L_CRANK"/>
+    <child link="LG_FINGER"/>
+    <origin xyz="0.033000 0.000000 -0.000080" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="${-grip_open_angle - grip_limit_margin}" upper="${grip_limit_margin}" effort="${grip_effort}" velocity="${grip_velocity}"/>
+    <mimic joint="GRIPPER_JOINT" multiplier="-1" offset="0"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+
+  <xacro:property name="l_bar_mass" value="0.001371"/>
+  <link name="L_BAR">
+    <inertial>
+      <origin xyz="0.017000 0.014750 -0.000000" rpy="0 0 0"/>
+      <mass value="${l_bar_mass}"/>
+      <inertia
+        ixx="${l_bar_mass*7.142449e-06}"
+        iyy="${l_bar_mass*1.290707e-04}"
+        izz="${l_bar_mass*1.253032e-04}"
+        ixy="${l_bar_mass*-1.734054e-19}"
+        ixz="${l_bar_mass*-1.563382e-20}"
+        iyz="${l_bar_mass*-4.563922e-21}"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://robot_arm_4_dof/meshes/L_BAR.STL"/>
+      </geometry>
+      <material name="">
+        <color rgba="0.15 0.15 0.15 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://robot_arm_4_dof/meshes/L_BAR.STL"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="L_BAR_JOINT" type="revolute">
+    <parent link="GRIPPER_BASE"/>
+    <child link="L_BAR"/>
+    <origin xyz="0.008000 0.000000 -0.026000" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="${-grip_limit_margin}" upper="${grip_open_angle + grip_limit_margin}" effort="${grip_effort}" velocity="${grip_velocity}"/>
+    <mimic joint="GRIPPER_JOINT" multiplier="1" offset="0"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+
+
+  <!-- TCP tai mui 2 ngon khi dong, tren mat phang ngon y = 13.5 mm -->
+  <link name="GRIPPER_TCP"/>
+  <joint name="GRIPPER_TCP_FIXED" type="fixed">
+    <parent link="GRIPPER_BASE"/>
+    <child link="GRIPPER_TCP"/>
+    <origin xyz="0.104100 0.0135 0" rpy="0 0 0"/>
+  </joint>
+
+
+  <!-- ========================================================= -->
+  <!-- GAZEBO VAT LY LINK -->
+  <!-- ========================================================= -->
+
+  <xacro:gazebo_link name="base_link" color="Blue"/>
+  <xacro:gazebo_link name="LINK_1" color="White"/>
+  <xacro:gazebo_link name="LINK_2" color="Blue"/>
+  <xacro:gazebo_link name="LINK_3" color="White"/>
+  <xacro:gazebo_link name="LINK_4" color="Blue"/>
+  <xacro:gazebo_link name="GRIPPER_BASE" color="Grey"/>
+  <xacro:gazebo_link name="R_CRANK" color="DarkGrey"/>
+  <xacro:gazebo_link name="L_CRANK" color="DarkGrey"/>
+  <xacro:gazebo_link name="R_BAR" color="DarkGrey"/>
+  <xacro:gazebo_link name="L_BAR" color="DarkGrey"/>
+  <xacro:gazebo_link name="LG_FINGER" color="Blue"/>
+  <xacro:gazebo_link name="RG_FINGER" color="Blue"/>
+
+
+  <!-- ========================================================= -->
+  <!-- GAZEBO VAT LY JOINT -->
+  <!-- ========================================================= -->
+
+  <xacro:gazebo_joint name="JOINT_1"/>
+  <xacro:gazebo_joint name="JOINT_2"/>
+  <xacro:gazebo_joint name="JOINT_3"/>
+  <xacro:gazebo_joint name="JOINT_4"/>
+  <xacro:gazebo_joint name="GRIPPER_JOINT"/>
+  <xacro:gazebo_joint name="R_FINGER_JOINT"/>
+  <xacro:gazebo_joint name="R_BAR_JOINT"/>
+  <xacro:gazebo_joint name="L_CRANK_JOINT"/>
+  <xacro:gazebo_joint name="L_FINGER_JOINT"/>
+  <xacro:gazebo_joint name="L_BAR_JOINT"/>
+
+
+  <!-- ========================================================= -->
+  <!-- ROS2 CONTROL + PLUGIN GAZEBO HARMONIC, CHI BAT KHI use_gazebo=true -->
+  <!-- Khi chay MoveIt demo (use_gazebo=false), MoveIt tu them khoi FakeSystem rieng -->
+  <!-- ========================================================= -->
+
+  <xacro:if value="$(arg use_gazebo)">
+
+    <ros2_control name="GazeboSimSystem" type="system">
+
+      <hardware>
+        <!-- [JAZZY] thay gazebo_ros2_control/GazeboSystem (Gazebo Classic) -->
+        <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+      </hardware>
+
+      <xacro:control_joint name="JOINT_1"/>
+      <xacro:control_joint name="JOINT_2"/>
+      <xacro:control_joint name="JOINT_3"/>
+      <xacro:control_joint name="JOINT_4"/>
+
+      <!-- Chi GRIPPER_JOINT nhan lenh, 5 khop mimic chay theo the <mimic> trong URDF -->
+      <xacro:control_joint name="GRIPPER_JOINT" initial="0.0"/>
+      <xacro:mimic_control_joint name="R_FINGER_JOINT" mult="-1"/>
+      <xacro:mimic_control_joint name="R_BAR_JOINT" mult="1"/>
+      <xacro:mimic_control_joint name="L_CRANK_JOINT" mult="1"/>
+      <xacro:mimic_control_joint name="L_FINGER_JOINT" mult="-1"/>
+      <xacro:mimic_control_joint name="L_BAR_JOINT" mult="1"/>
+
+    </ros2_control>
+
+    <!-- [JAZZY] thay libgazebo_ros2_control.so (Gazebo Classic) -->
+    <!-- Ten package trong $(find ...) phai trung voi package chua config/final.yaml -->
+    <gazebo>
+      <plugin
+        filename="gz_ros2_control-system"
+        name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+        <parameters>$(find robot_arm_4_dof)/config/final.yaml</parameters>
+      </plugin>
+    </gazebo>
+
+  </xacro:if>
+
+</robot>

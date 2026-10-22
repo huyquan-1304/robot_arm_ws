@@ -1,0 +1,55 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>robot_arm_4_dof</name>
+  <version>0.0.0</version>
+
+  <description>
+    4 DOF robot description package for ROS 2 Jazzy
+    and Gazebo Harmonic.
+  </description>
+
+  <maintainer email="user@example.com">quang</maintainer>
+  <license>Apache-2.0</license>
+
+  <!-- Build system -->
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- Robot description -->
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>joint_state_publisher</exec_depend>
+  <exec_depend>joint_state_publisher_gui</exec_depend>
+  <exec_depend>xacro</exec_depend>
+
+  <!-- ROS 2 Launch -->
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+
+  <!-- Visualization -->
+  <exec_depend>rviz2</exec_depend>
+
+  <!-- Gazebo Harmonic -->
+  <exec_depend>ros_gz_sim</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>gz_ros2_control</exec_depend>
+
+  <!-- ros2_control -->
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>joint_trajectory_controller</exec_depend>
+
+  <!-- MoveIt (simulation_robot / pick_and_place_sim launch) -->
+  <exec_depend>moveit_configs_utils</exec_depend>
+  <exec_depend>moveit_ros_move_group</exec_depend>
+
+  <!-- Node pick and place (scripts/pick_place_node.py) -->
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>control_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>trajectory_msgs</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+
+</package>

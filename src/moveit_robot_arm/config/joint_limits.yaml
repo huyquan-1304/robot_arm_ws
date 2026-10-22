@@ -1,0 +1,69 @@
+# joint_limits.yaml cho MoveIt 2 (ROS 2 Jazzy)
+# Ghi de / bo sung gioi han dong hoc lay tu URDF.
+# Jazzy: moi gia tri so phai la so thuc (10.0, khong phai 10).
+# Jazzy: bo tao thoi gian quy dao (TOTG) bat buoc moi khop co gioi han gia toc.
+#
+# GIA TRI TAM THOI, chua lay tu tinh toan co khi.
+# Khi da tinh xong momen dong co va quan tinh cac khau, thay max_velocity va
+# max_acceleration bang gia tri tinh duoc cho tung khop.
+
+default_velocity_scaling_factor: 0.1
+default_acceleration_scaling_factor: 0.1
+
+joint_limits:
+
+  # ----- Tay may 4 bac -----
+  JOINT_1:
+    has_velocity_limits: true
+    max_velocity: 1.0
+    has_acceleration_limits: true
+    max_acceleration: 2.0
+  JOINT_2:
+    has_velocity_limits: true
+    max_velocity: 1.0
+    has_acceleration_limits: true
+    max_acceleration: 2.0
+  JOINT_3:
+    has_velocity_limits: true
+    max_velocity: 1.0
+    has_acceleration_limits: true
+    max_acceleration: 2.0
+  JOINT_4:
+    has_velocity_limits: true
+    max_velocity: 1.0
+    has_acceleration_limits: true
+    max_acceleration: 2.0
+
+  # ----- Kep -----
+  GRIPPER_JOINT:
+    has_velocity_limits: true
+    max_velocity: 2.0
+    has_acceleration_limits: true
+    max_acceleration: 4.0
+
+  # Khop mimic chay theo GRIPPER_JOINT, khai bao cung gioi han de khong thieu
+  R_FINGER_JOINT:
+    has_velocity_limits: true
+    max_velocity: 2.0
+    has_acceleration_limits: true
+    max_acceleration: 4.0
+  R_BAR_JOINT:
+    has_velocity_limits: true
+    max_velocity: 2.0
+    has_acceleration_limits: true
+    max_acceleration: 4.0
+  L_CRANK_JOINT:
+    has_velocity_limits: true
+    max_velocity: 2.0
+    has_acceleration_limits: true
+    max_acceleration: 4.0
+  L_FINGER_JOINT:
+    has_velocity_limits: true
+    max_velocity: 2.0
+    has_acceleration_limits: true
+    max_acceleration: 4.0
+  L_BAR_JOINT:
+    has_velocity_limits: true
+    max_velocity: 2.0
+    has_acceleration_limits: true
+    max_acceleration: 4.0
