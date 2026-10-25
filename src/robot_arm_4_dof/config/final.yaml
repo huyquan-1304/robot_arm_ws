@@ -42,8 +42,22 @@ arm_controller:
       - position
       - velocity
     allow_partial_joints_goal: true
+    # goal: sai lech cho phep o CUOI quy dao. Het quy dao + goal_time ma chua toi thi THAT BAI.
+    # trajectory: sai lech cho phep TRONG LUC chay (vi tri thuc so voi vi tri lenh cung thoi diem).
+    #   Bat truong hop cac khop lech nhau giua duong (vd khop 2 toi truoc khop 3, 4) -> controller
+    #   huy quy dao, node gap dung lai TRUOC khi tay di sai duong va va vao vat.
+    #   Gia tri tinh tu toc do dinh x do tre ca chuoi Pi -> STM32 -> ZDT (khoang 80 ms) x 2 lan du:
+    #   J1, J4 chay toi 0.65 rad/s -> tre ~0.05 rad.  J2 toi da 2 do/s, J3 8 do/s -> tre rat nho.
+    constraints:
+      goal_time: 2.0
+      stopped_velocity_tolerance: 0.01
+      JOINT_1: {trajectory: 0.10, goal: 0.01}   # 0.01 rad, khoang 0.6 do
+      JOINT_2: {trajectory: 0.03, goal: 0.01}
+      JOINT_3: {trajectory: 0.04, goal: 0.01}
+      JOINT_4: {trajectory: 0.10, goal: 0.01}
 
 
+# Kep KHONG dat dung sai dich: khi kep vat, ngon dung lai o mat vat chu khong toi goc lenh.
 gripper_controller:
   ros__parameters:
     # Chi dieu khien GRIPPER_JOINT (goc tay quay, rad). 5 khop con lai la mimic trong URDF

@@ -1,0 +1,31 @@
+# Tham so node stm32_bridge_node.py (robot that)
+# Day la noi DUY NHAT chua quy doi URDF <-> firmware. Sua o day, khong can nap lai STM32.
+#
+# Quy doi khop:  goc_firmware_do = joint_sign * deg(goc_URDF) + joint_offset_deg
+#
+# CACH HIEU CHUAN joint_sign (lam tung khop, dong co dang bat, toc do thap):
+#   1. Chay real_robot.launch.py, bat dong co, trong RViz keo khop n +0.1 rad (+5.7 do).
+#   2. Neu tay that quay CUNG chieu voi RViz thi joint_sign = 1.0, NGUOC chieu thi -1.0.
+# CACH HIEU CHUAN joint_offset_deg:
+#   Tu the HOME trong URDF (4 khop = 0) ung voi goc firmware nao thi offset bang goc do.
+#   Firmware hien lay vi tri LUC BAT NGUON lam 0. Neu luon bat nguon khi tay o dung tu the HOME
+#   cua URDF thi offset = 0.
+#
+# CANH BAO: gioi han goc trong joint.c phai chua du khoang ma chuoi gap dat can (xem README).
+
+stm32_bridge:
+  ros__parameters:
+    baud: 115200
+    rate_hz: 50.0
+
+    joint_sign: [1.0, 1.0, 1.0, 1.0]          # CHUA HIEU CHUAN
+    joint_offset_deg: [0.0, 0.0, 0.0, 0.0]    # CHUA HIEU CHUAN
+
+    # Kep: GRIPPER_JOINT (rad) -> khe ho 2 ngon (mm) -> do rong xung servo (us)
+    # So do lay tu cmd_uart.c: s 500 = 53 mm, s 1000 = 23 mm, s 1300 = dong chat
+    gripper_crank_m: 0.033
+    gripper_gap_mm: [53.0, 23.0, 0.0]
+    gripper_us: [500.0, 1000.0, 1300.0]
+
+    max_jump_rad: 0.2          # lenh lech vi tri thuc qua muc nay thi khong gui
+    state_timeout_s: 0.5       # mat trang thai STM32 qua lau thi tu TAT

@@ -16,11 +16,12 @@ Da kiem tra bang dong hoc thuan tu URDF:
   - Doan xoay giu nguyen do cao 0.32 m va ban kinh 0.20 m, khong cham be (be cach truc J1 tu 0.26 m).
 """
 
+import math
+
 import rclpy
 from rclpy.action import ActionClient
 from rclpy.duration import Duration
 from rclpy.node import Node
-from rclpy.parameter import Parameter
 
 from builtin_interfaces.msg import Duration as DurationMsg
 from control_msgs.action import FollowJointTrajectory
@@ -48,16 +49,30 @@ GRIPPER_GRASP = 0.62   # tiep xuc vat 40 mm o 0.651, ep them khoang 0.85 mm moi 
 # Toc do khop dinh (rad/s). Thap hon gioi han 1.0 rad/s trong joint_limits.yaml
 SPEED_NORMAL = 0.65
 SPEED_SLOW = 0.25      # ha, nhac vat
+
+# Toc do toi da THAT cua tung khop (rad/s), lay tu bang joint.c cua firmware (dps_x10):
+#   J1 80 do/s, J2 2 do/s, J3 8 do/s, J4 80 do/s.
+# Chi ap dung khi chay voi tham so real_limits:=true. Firmware khong cho khop chay nhanh hon,
+# neu node ra lenh nhanh hon thi khop tre so voi quy dao va controller bao loi.
+# Sua lai khi ban phan cung thay doi bang toc do trong joint.c.
+REAL_MAX_SPEED = [math.radians(80.0), math.radians(2.0), math.radians(8.0), math.radians(80.0)]
+# Gia toc toi da THAT (rad/s^2), tu acc_x10 trong joint.c: J1 120, J2 2, J3 10, J4 200 do/s^2.
+# Profile s(u) = 3u^2 - 2u^3 co gia toc dinh = 6 * dq / T^2, nen T >= sqrt(6 * dq / a_max).
+REAL_MAX_ACC = [math.radians(120.0), math.radians(2.0), math.radians(10.0), math.radians(200.0)]
 N_POINTS = 30          # so diem trong moi quy dao
 
 
 class PickPlace(Node):
 
     def __init__(self):
-        super().__init__(
-            'pick_place_node',
-            parameter_overrides=[Parameter('use_sim_time', Parameter.Type.BOOL, True)],
-        )
+        # use_sim_time lay tu dong lenh: Gazebo can --ros-args -p use_sim_time:=true
+        super().__init__('pick_place_node')
+        # real_limits: true = gioi han toc do tung khop theo firmware (chay robot that)
+        self.declare_parameter('real_limits', False)
+        self.real_limits = self.get_parameter('real_limits').value
+        self.get_logger().info(
+            f"use_sim_time = {self.get_parameter('use_sim_time').value}, "
+            f"real_limits = {self.real_limits}")
         self.arm = ActionClient(self, FollowJointTrajectory, '/arm_controller/follow_joint_trajectory')
         self.grip = ActionClient(self, FollowJointTrajectory, '/gripper_controller/follow_joint_trajectory')
         self.joint_pos = {}
@@ -97,7 +112,10 @@ class PickPlace(Node):
         rclpy.spin_until_future_complete(self, result_future)
         result = result_future.result().result
         if result.error_code != FollowJointTrajectory.Result.SUCCESSFUL:
-            self.get_logger().warn(f'Controller bao ma loi {result.error_code}: {result.error_string}')
+            # Dung ca chuoi: khong dong kep khi tay chua toi dung vi tri
+            raise RuntimeError(
+                f'Controller bao loi {result.error_code} cho {joints}: {result.error_string}. '
+                'Dung chuoi pick and place.')
         return result.error_code
 
     @staticmethod
@@ -123,8 +141,16 @@ class PickPlace(Node):
         rclpy.spin_once(self, timeout_sec=0.05)
         start = [self.joint_pos[j] for j in ARM_JOINTS]
         target = POSES[pose_name]
-        dq = max(abs(b - a) for a, b in zip(start, target))
-        duration = max(1.0, 1.5 * dq / speed)
+        # MOT thoi gian chung cho ca 4 khop, do khop cham nhat quyet dinh (theo ca toc do va gia toc).
+        # Moi khop di het quang duong cua minh trong dung thoi gian do, nen 4 khop BAT DAU va
+        # TOI NOI CUNG LUC. Khop nhanh (J1, J4) tu dong chay cham lai cho khop cham (J2).
+        inf = [float('inf')] * len(ARM_JOINTS)
+        vlim = REAL_MAX_SPEED if self.real_limits else inf
+        alim = REAL_MAX_ACC if self.real_limits else inf
+        duration = 1.0
+        for a, b, vmax, amax in zip(start, target, vlim, alim):
+            dq = abs(b - a)
+            duration = max(duration, 1.5 * dq / min(speed, vmax), math.sqrt(6.0 * dq / amax))
         self.get_logger().info(f'Tay -> {pose_name}  ({duration:.1f} s mo phong)')
         self._send(self.arm, ARM_JOINTS, self._smooth_trajectory(start, target, duration))
 

@@ -8,6 +8,9 @@
   <!-- use_gazebo = true: bat khoi ros2_control gz_ros2_control va plugin Gazebo Harmonic -->
   <!-- ========================================================= -->
   <xacro:arg name="use_gazebo" default="false"/>
+  <!-- use_real_hw = true: ros2_control noi voi robot that qua topic (JointStateTopicSystem) -->
+  <!-- Khong bat dong thoi use_gazebo va use_real_hw -->
+  <xacro:arg name="use_real_hw" default="false"/>
 
 
   <!-- ========================================================= -->
@@ -670,6 +673,31 @@
       </plugin>
     </gazebo>
 
+  </xacro:if>
+
+
+  <!-- ========================================================= -->
+  <!-- ROS2 CONTROL CHO ROBOT THAT, CHI BAT KHI use_real_hw=true -->
+  <!-- Plugin co san: ghi lenh khop ra /robot_joint_commands, doc trang thai tu /robot_joint_states -->
+  <!-- Node stm32_bridge_node.py chuyen 2 topic nay qua USART xuong STM32 -->
+  <!-- Chi khai bao 5 khop co dong co. 5 khop mimic cua kep do robot_state_publisher tu tinh -->
+  <!-- ========================================================= -->
+
+  <xacro:if value="$(arg use_real_hw)">
+    <ros2_control name="RealArmSystem" type="system">
+      <hardware>
+        <plugin>joint_state_topic_hardware_interface/JointStateTopicSystem</plugin>
+        <param name="joint_commands_topic">/robot_joint_commands</param>
+        <param name="joint_states_topic">/robot_joint_states</param>
+        <!-- -1: luon phat lenh moi chu ky, ke ca khi dung yen -->
+        <param name="trigger_joint_command_threshold">-1</param>
+      </hardware>
+      <xacro:control_joint name="JOINT_1"/>
+      <xacro:control_joint name="JOINT_2"/>
+      <xacro:control_joint name="JOINT_3"/>
+      <xacro:control_joint name="JOINT_4"/>
+      <xacro:control_joint name="GRIPPER_JOINT" initial="0.0"/>
+    </ros2_control>
   </xacro:if>
 
 </robot>
