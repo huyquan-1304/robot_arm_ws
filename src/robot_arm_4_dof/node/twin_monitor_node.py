@@ -75,7 +75,7 @@ class TwinMonitor(Node):
         p('arm_joints', ['JOINT_1', 'JOINT_2', 'JOINT_3', 'JOINT_4'])
         p('gripper_joint', 'GRIPPER_JOINT')
         # Phai giong constraints.<khop>.trajectory cua arm_controller trong final.yaml
-        p('trajectory_tolerance_rad', [0.10, 0.03, 0.04, 0.10])
+        p('trajectory_tolerance_rad', [0.10, 0.03, 0.08, 0.10])  # = constraints trong final.yaml
         p('report_period_s', 1.0)
         # Ban: ten va [tam x, y, z, kich thuoc x, y, z] (m), lay tu worlds/pick_place.sdf
         p('box_names', ['table_A', 'table_B'])
@@ -145,8 +145,11 @@ class TwinMonitor(Node):
     def _on_status(self, msg):
         if self.status is not None and msg.data != self.status:
             names = [n for b, n in enumerate(STATUS_BITS) if msg.data & (1 << b)]
-            log = self.get_logger().error if msg.data & ERROR_MASK else self.get_logger().info
-            log(f'STM32 doi trang thai: {names or ["OFF"]}')
+            _msg = f'STM32 doi trang thai: {names or ["OFF"]}'
+            if msg.data & ERROR_MASK:
+                self.get_logger().error(_msg)
+            else:
+                self.get_logger().info(_msg)
         self.status = msg.data
 
     # ---------------- vong lap ----------------

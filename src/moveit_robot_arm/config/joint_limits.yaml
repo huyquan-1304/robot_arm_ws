@@ -3,9 +3,10 @@
 # Jazzy: moi gia tri so phai la so thuc (10.0, khong phai 10).
 # Jazzy: bo tao thoi gian quy dao (TOTG) bat buoc moi khop co gioi han gia toc.
 #
-# GIA TRI TAM THOI, chua lay tu tinh toan co khi.
-# Khi da tinh xong momen dong co va quan tinh cac khau, thay max_velocity va
-# max_acceleration bang gia tri tinh duoc cho tung khop.
+# KHONG DUOC VUOT toc do / gia toc firmware (bang joint.c), neu khong khop chay cham hon quy dao,
+# controller bao lech va huy. Gia tri duoi day = dung bang joint.c ngay 2026-10-26:
+#   J1 80 do/s 120 do/s2 | J2 8 do/s 10 do/s2 | J3 25 do/s 35 do/s2 | J4 80 do/s 200 do/s2
+# Sua joint.c thi sua theo o day.
 
 default_velocity_scaling_factor: 0.1
 default_acceleration_scaling_factor: 0.1
@@ -15,24 +16,24 @@ joint_limits:
   # ----- Tay may 4 bac -----
   JOINT_1:
     has_velocity_limits: true
-    max_velocity: 1.0
+    max_velocity: 1.396
     has_acceleration_limits: true
-    max_acceleration: 2.0
+    max_acceleration: 2.094
   JOINT_2:
     has_velocity_limits: true
-    max_velocity: 1.0
+    max_velocity: 0.139
     has_acceleration_limits: true
-    max_acceleration: 2.0
+    max_acceleration: 0.174
   JOINT_3:
     has_velocity_limits: true
-    max_velocity: 1.0
+    max_velocity: 0.436
     has_acceleration_limits: true
-    max_acceleration: 2.0
+    max_acceleration: 0.61
   JOINT_4:
     has_velocity_limits: true
-    max_velocity: 1.0
+    max_velocity: 1.396
     has_acceleration_limits: true
-    max_acceleration: 2.0
+    max_acceleration: 3.49
 
   # ----- Kep -----
   GRIPPER_JOINT:

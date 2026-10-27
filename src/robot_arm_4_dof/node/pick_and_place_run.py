@@ -49,16 +49,17 @@ GRIPPER_GRASP = 0.62   # tiep xuc vat 40 mm o 0.651, ep them khoang 0.85 mm moi 
 # Toc do khop dinh (rad/s). Thap hon gioi han 1.0 rad/s trong joint_limits.yaml
 SPEED_NORMAL = 0.65
 SPEED_SLOW = 0.25      # ha, nhac vat
+SPEED_ROTATE = 0.45    # doan xoay J1 90 do, giam tre bam quy dao J1
 
 # Toc do toi da THAT cua tung khop (rad/s), lay tu bang joint.c cua firmware (dps_x10):
-#   J1 80 do/s, J2 2 do/s, J3 8 do/s, J4 80 do/s.
+#   J1 80 do/s, J2 8 do/s, J3 25 do/s, J4 80 do/s  (joint.c ngay 2026-10-26, ti so 12/27/14/1).
 # Chi ap dung khi chay voi tham so real_limits:=true. Firmware khong cho khop chay nhanh hon,
 # neu node ra lenh nhanh hon thi khop tre so voi quy dao va controller bao loi.
 # Sua lai khi ban phan cung thay doi bang toc do trong joint.c.
-REAL_MAX_SPEED = [math.radians(80.0), math.radians(2.0), math.radians(8.0), math.radians(80.0)]
-# Gia toc toi da THAT (rad/s^2), tu acc_x10 trong joint.c: J1 120, J2 2, J3 10, J4 200 do/s^2.
+REAL_MAX_SPEED = [math.radians(80.0), math.radians(6.5), math.radians(25.0), math.radians(80.0)]
+# Gia toc toi da THAT (rad/s^2), tu acc_x10 trong joint.c: J1 120, J2 10, J3 35, J4 200 do/s^2.
 # Profile s(u) = 3u^2 - 2u^3 co gia toc dinh = 6 * dq / T^2, nen T >= sqrt(6 * dq / a_max).
-REAL_MAX_ACC = [math.radians(120.0), math.radians(2.0), math.radians(10.0), math.radians(200.0)]
+REAL_MAX_ACC = [math.radians(120.0), math.radians(10.0), math.radians(35.0), math.radians(200.0)]
 N_POINTS = 30          # so diem trong moi quy dao
 
 
@@ -177,8 +178,8 @@ class PickPlace(Node):
         self.move_arm('PRE_A', SPEED_SLOW)
 
         # Dua vat len cao, xoay sang B (chi J1 thay doi)
-        self.move_arm('CARRY_A')
-        self.move_arm('CARRY_B')
+        self.move_arm('CARRY_A', SPEED_ROTATE)    # dong 192, truoc la self.move_arm('CARRY_A')
+        self.move_arm('CARRY_B', SPEED_ROTATE)    # dong 181, truoc la self.move_arm('CARRY_B')
 
         # Dat tai B
         self.move_arm('PRE_B')
@@ -189,7 +190,7 @@ class PickPlace(Node):
 
         # Ve home theo cung duong carry
         self.move_arm('CARRY_B')
-        self.move_arm('CARRY_A')
+        self.move_arm('CARRY_A', SPEED_ROTATE)
         self.move_arm('HOME')
         self.get_logger().info('Hoan thanh pick and place.')
 

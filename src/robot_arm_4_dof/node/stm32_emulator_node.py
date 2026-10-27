@@ -28,13 +28,14 @@ import struct
 # GIAO THUC (giong ros_link.c va stm32_bridge_node.py)
 # ----------------------------------------------------------------------
 HEADER = b'\xAA\x55'
-T_CMD_JOINT, T_CMD_ENABLE, T_CMD_ESTOP, T_CMD_SET_ZERO, T_CMD_PING = 0x01, 0x02, 0x03, 0x04, 0x05
+T_CMD_JOINT, T_CMD_ENABLE, T_CMD_ESTOP, T_CMD_SET_ZERO, T_CMD_PING, T_CMD_HOME = 0x01, 0x02, 0x03, 0x04, 0x05, 0x06
 T_STATE = 0x81
 FMT_CMD_JOINT = '<H4iH'
 FMT_STATE = '<H4iHHB'
 
 ST_ENABLED, ST_WATCHDOG, ST_CAN_ERROR = 1 << 0, 1 << 1, 1 << 2
-ST_NOT_HOMED, ST_LIMIT, ST_ESTOP = 1 << 7, 1 << 8, 1 << 9
+ST_NOT_HOMED, ST_LIMIT, ST_ESTOP, ST_HOMING = 1 << 7, 1 << 8, 1 << 9, 1 << 10
+HOME_TIME_MS = 5000          # gia lap: home mat 5 s, xong thi 4 khop ve 0 (giua cam bien)
 
 
 def crc16_ccitt(data: bytes, crc: int = 0xFFFF) -> int:
@@ -148,6 +149,7 @@ class FirmwareModel:
         self.active = False
         self.enabled = False
         self.status = 0 if self.homed else ST_NOT_HOMED
+        self.home_done_ms = None            # dang home: thoi diem xong
         self.seq = 0
         self.t_ms = 0
         self.last_rx = 0
@@ -180,8 +182,15 @@ class FirmwareModel:
             v = struct.unpack(FMT_CMD_JOINT, p)
             self.seq, self.cmd_x10, self.cmd_us = v[0], list(v[1:5]), v[5]
             self.have_new, self.last_cmd = True, self.t_ms
+        elif t == T_CMD_HOME:
+            if not self.enabled and self.home_done_ms is None:
+                self.home_done_ms = self.t_ms + HOME_TIME_MS
+                self.status |= ST_HOMING
+                self.status &= ~(ST_ESTOP | ST_WATCHDOG | ST_LIMIT)
         elif t == T_CMD_ENABLE and len(p) == 1:
-            if p[0]:
+            if p[0] and (self.status & (ST_NOT_HOMED | ST_HOMING)):
+                pass                        # giong firmware: chua home thi khong bat
+            elif p[0]:
                 for i in range(4):
                     self.target_x10[i] = self.read_pos_x10(i)
                     self.cmd_x10[i] = self.target_x10[i]
@@ -192,6 +201,10 @@ class FirmwareModel:
         elif t == T_CMD_ESTOP:
             self._stop()
             self.status |= ST_ESTOP
+            if self.home_done_ms is not None:   # huy home
+                self.home_done_ms = None
+                self.status &= ~ST_HOMING
+                self.status |= ST_NOT_HOMED
 
     def _stop(self):
         for m in self.motors:
@@ -234,6 +247,14 @@ class FirmwareModel:
         if self.enabled and self.t_ms - self.last_cmd > self.watchdog_ms:
             self._stop()
             self.status |= ST_WATCHDOG
+        if self.home_done_ms is not None and self.t_ms >= self.home_done_ms:
+            for i in range(4):                  # home xong: khop ve goc 0 (giua cam bien)
+                self.motors[i].pos = self.joint_to_motor_x10(i, 0) / 10.0
+                self.motors[i].stop()
+                self.target_x10[i] = 0
+            self.servo_target = 500.0           # home ca tay thi gripper mo
+            self.home_done_ms = None
+            self.status &= ~(ST_HOMING | ST_NOT_HOMED)
         dt = self.t_ms - self.last_cycle
         if dt < self.cycle_ms:
             return None
@@ -273,11 +294,11 @@ def main():
         def __init__(self):
             super().__init__('stm32_emulator')
             self.declare_parameter('link_path', '/tmp/ttySTM32')
-            for name, default in [('ratio', [12, 243, 126, 1]), ('dir', [1, 1, 1, 1]),
-                                  ('min_deg', [-90.0, 0.0, -90.0, 0.0]),
+            for name, default in [('ratio', [12, 27, 14, 1]), ('dir', [1, 1, 1, 1]),
+                                  ('min_deg', [-90.0, -90.0, -90.0, -90.0]),
                                   ('max_deg', [90.0, 90.0, 90.0, 90.0]),
-                                  ('dps', [80.0, 2.0, 8.0, 80.0]),
-                                  ('acc', [120.0, 2.0, 10.0, 200.0])]:
+                                  ('dps', [80.0, 8.0, 25.0, 80.0]),
+                                  ('acc', [120.0, 10.0, 35.0, 200.0])]:
                 self.declare_parameter(name, default)
             for name, default in [('stream_acc_gain', 4.0), ('cycle_ms', 20), ('watchdog_ms', 200),
                                   ('ros_mode_timeout_ms', 1000), ('homed', True),

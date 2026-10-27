@@ -47,13 +47,14 @@ arm_controller:
     #   Bat truong hop cac khop lech nhau giua duong (vd khop 2 toi truoc khop 3, 4) -> controller
     #   huy quy dao, node gap dung lai TRUOC khi tay di sai duong va va vao vat.
     #   Gia tri tinh tu toc do dinh x do tre ca chuoi Pi -> STM32 -> ZDT (khoang 80 ms) x 2 lan du:
-    #   J1, J4 chay toi 0.65 rad/s -> tre ~0.05 rad.  J2 toi da 2 do/s, J3 8 do/s -> tre rat nho.
+    #   J1, J4 chay toi 0.65 rad/s -> tre ~0.05 rad. J2 toi da 8 do/s (0.14 rad/s) -> tre ~0.011 rad.
+    #   J3 toi da 25 do/s (0.44 rad/s) -> tre ~0.035 rad, x 2 lan du = 0.07 -> dat 0.08.
     constraints:
       goal_time: 2.0
       stopped_velocity_tolerance: 0.01
       JOINT_1: {trajectory: 0.10, goal: 0.01}   # 0.01 rad, khoang 0.6 do
       JOINT_2: {trajectory: 0.03, goal: 0.01}
-      JOINT_3: {trajectory: 0.04, goal: 0.01}
+      JOINT_3: {trajectory: 0.08, goal: 0.01}
       JOINT_4: {trajectory: 0.10, goal: 0.01}
 
 

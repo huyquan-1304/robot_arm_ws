@@ -8,8 +8,11 @@
 #   2. Neu tay that quay CUNG chieu voi RViz thi joint_sign = 1.0, NGUOC chieu thi -1.0.
 # CACH HIEU CHUAN joint_offset_deg:
 #   Tu the HOME trong URDF (4 khop = 0) ung voi goc firmware nao thi offset bang goc do.
-#   Firmware hien lay vi tri LUC BAT NGUON lam 0. Neu luon bat nguon khi tay o dung tu the HOME
-#   cua URDF thi offset = 0.
+#   Goc 0 firmware = GIUA CAM BIEN HANH TRINH (sau lenh home, 4 den opto sang).
+#   Muc tieu: sua URDF (doi dau axis, cong offset vao origin rpy bang tools/urdf_zero_offset.py)
+#   de tu the 0 URDF trung tu the 4 den sang. Khi do joint_sign = 1, joint_offset_deg = 0.
+#
+# TRINH TU CHAY ROBOT THAT: launch -> ~/home (cho het HOMING, NOT_HOMED) -> ~/enable.
 #
 # CANH BAO: gioi han goc trong joint.c phai chua du khoang ma chuoi gap dat can (xem README).
 
@@ -18,14 +21,14 @@ stm32_bridge:
     baud: 115200
     rate_hz: 50.0
 
-    joint_sign: [1.0, 1.0, 1.0, 1.0]          # CHUA HIEU CHUAN
+    joint_sign: [1.0, -1.0, 1.0, 1.0]          # CHUA HIEU CHUAN
     joint_offset_deg: [0.0, 0.0, 0.0, 0.0]    # CHUA HIEU CHUAN
 
     # Kep: GRIPPER_JOINT (rad) -> khe ho 2 ngon (mm) -> do rong xung servo (us)
-    # So do lay tu cmd_uart.c: s 500 = 53 mm, s 1000 = 23 mm, s 1300 = dong chat
+    # So do lay tu cmd_uart.c: s 500 = 53 mm, s 1000 = 23 mm, s 1270 = 2 ngon vua cham (GRIP_CLOSE_US)
     gripper_crank_m: 0.033
     gripper_gap_mm: [53.0, 23.0, 0.0]
-    gripper_us: [500.0, 1000.0, 1300.0]
+    gripper_us: [500.0, 1000.0, 1270.0]
 
     max_jump_rad: 0.2          # lenh lech vi tri thuc qua muc nay thi khong gui
     state_timeout_s: 0.5       # mat trang thai STM32 qua lau thi tu TAT

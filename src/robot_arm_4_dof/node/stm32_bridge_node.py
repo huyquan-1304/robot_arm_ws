@@ -13,13 +13,19 @@ STM32 tu chuyen sang che do nhi phan khi nhan goi dau tien, 1 s khong co goi thi
 
 DOI DON VI (node nay lam, firmware khong biet URDF):
   Khop:  goc_firmware_do = joint_sign * deg(goc_URDF_rad) + joint_offset_deg
-         Firmware dung 0.1 do theo bang joint.c (chieu, diem 0, gioi han rieng cua firmware).
+         Firmware dung 0.1 do theo bang joint.c. Goc 0 firmware = GIUA CAM BIEN HANH TRINH
+         (home.c, 4 den opto sang). Neu URDF da sua de tu the 0 trung tu the do va cung chieu
+         thi joint_sign = 1, joint_offset_deg = 0.
   Kep:   GRIPPER_JOINT (rad) -> khe ho = 2 * gripper_crank_m * sin(q) -> do rong xung servo (us)
          theo bang do thuc te gripper_gap_mm <-> gripper_us (noi suy tuyen tinh).
 
 Hai che do:
   loopback:=true   Gia lap STM32 trong node (khong can phan cung), van di qua buoc doi don vi.
   loopback:=false  Doc ghi cong noi tiep that.
+
+HOME: goi ~/home (STM32 chay home bang cam bien, kem mo gripper, khoang 30 s), hoac go "home"
+  tren console STM32 truoc khi chay node. Chua home (NOT_HOMED) thi ~/enable bi tu choi,
+  firmware cung tu choi.
 
 AN TOAN:
   - Mac dinh TAT. Goi dich vu ~/enable de STM32 nhan lenh chuyen dong.
@@ -47,6 +53,7 @@ T_CMD_ENABLE = 0x02     # on u8
 T_CMD_ESTOP = 0x03      # rong
 T_CMD_SET_ZERO = 0x04   # mask u8 (bit0 = khop 1 ... bit3 = khop 4)
 T_CMD_PING = 0x05       # rong
+T_CMD_HOME = 0x06       # rong. Home bang cam bien, chi khi dang TAT
 T_STATE = 0x81          # seq u16 | 4 x i32 | servo_us u16 | status u16 | loop_ms u8  = 23 byte
 
 FMT_CMD_JOINT = '<H4iH'
@@ -55,11 +62,12 @@ FMT_STATE = '<H4iHHB'
 STATUS_BITS = {
     0: 'ENABLED', 1: 'WATCHDOG', 2: 'CAN_ERROR',
     3: 'STALL_J1', 4: 'STALL_J2', 5: 'STALL_J3', 6: 'STALL_J4',
-    7: 'NOT_HOMED', 8: 'LIMIT', 9: 'ESTOP',
+    7: 'NOT_HOMED', 8: 'LIMIT', 9: 'ESTOP', 10: 'HOMING',
 }
 ST_ENABLED = 1 << 0
 ST_NOT_HOMED = 1 << 7
-ERROR_MASK = 0b11_0111_1110   # moi bit tru ENABLED va NOT_HOMED
+ST_HOMING = 1 << 10
+ERROR_MASK = 0b011_0111_1110  # moi bit tru ENABLED, NOT_HOMED, HOMING
 
 
 def crc16_ccitt(data: bytes, crc: int = 0xFFFF) -> int:
@@ -138,10 +146,10 @@ class Stm32Bridge(Node):
         # Doi URDF -> firmware cho tung khop. PHAI HIEU CHUAN tren robot that (xem README)
         p('joint_sign', [1.0, 1.0, 1.0, 1.0])
         p('joint_offset_deg', [0.0, 0.0, 0.0, 0.0])
-        # Kep: bang do thuc te (cmd_uart.c: s 500 = 53 mm, s 1000 = 23 mm, s 1300 = dong chat)
+        # Kep: bang do thuc te (s 500 = 53 mm, s 1000 = 23 mm, s 1270 = 2 ngon vua cham = GRIP_CLOSE_US)
         p('gripper_crank_m', 0.033)
         p('gripper_gap_mm', [53.0, 23.0, 0.0])
-        p('gripper_us', [500.0, 1000.0, 1300.0])
+        p('gripper_us', [500.0, 1000.0, 1270.0])
         p('max_jump_rad', 0.2)
         p('state_timeout_s', 0.5)
         p('loopback_speed_deg_s', 60.0)
@@ -163,6 +171,8 @@ class Stm32Bridge(Node):
         self.lb_speed = g('loopback_speed_deg_s')
 
         self.cmd = None          # lenh moi nhat (rad, thu tu self.joints)
+        self.grip_topic = None   # lenh gripper moi nhat tu ROS (rad)
+        self.grip_hold = None    # lenh gripper luc enable: ROS chua doi lenh thi gui 0 us (giu nguyen servo)
         self.state = None        # trang thai moi nhat (rad)
         self.status = 0
         self.enabled = False
@@ -173,6 +183,7 @@ class Stm32Bridge(Node):
         self.lb_fw = [0, 0, 0, 0]          # loopback: goc firmware (0.1 do)
         self.lb_us = int(self.us_pts[-1])  # loopback: servo (us)
         self.lb_enabled = False
+        self.lb_homed = True             # loopback: gia dinh da home
         self.enable_grace_until = None   # vua bat: cho STM32 xac nhan ENABLED
         self.auto_enable_pending = bool(g('auto_enable'))
         self.next_open_try = 0           # mo lai cong noi tiep moi 1 s neu chua mo duoc
@@ -187,7 +198,7 @@ class Stm32Bridge(Node):
         self.create_subscription(JointState, '/robot_joint_commands', self._on_cmd, 10)
         self.create_service(SetBool, '~/enable', self._srv_enable)
         self.create_service(Trigger, '~/estop', self._srv_estop)
-        self.create_service(Trigger, '~/set_zero', self._srv_set_zero)
+        self.create_service(Trigger, '~/home', self._srv_home)
         self.create_timer(1.0 / self.rate, self._tick)
 
 
@@ -260,6 +271,8 @@ class Stm32Bridge(Node):
         for i, j in enumerate(self.joints):
             if j in pos:
                 self.cmd[i] = pos[j]
+        if self.joints[4] in pos:
+            self.grip_topic = pos[self.joints[4]]
 
     def _try_auto_enable(self):
         """Loopback / STM32 gia lap: tu bat dong co khi da co trang thai dau tien."""
@@ -273,11 +286,16 @@ class Stm32Bridge(Node):
         if req.data and self.state is None:
             res.success, res.message = False, 'Chua nhan trang thai tu STM32, khong bat'
             return res
+        if req.data and self.status & ST_HOMING:
+            res.success, res.message = False, 'STM32 dang home, cho xong roi bat'
+            return res
         if req.data and self.status & ST_NOT_HOMED:
-            self.get_logger().warn('STM32 bao NOT_HOMED: diem 0 dang la vi tri luc bat nguon. '
-                                   'Dam bao tay o dung tu the HOME luc bat nguon, hoac goi ~/set_zero.')
+            res.success, res.message = False, 'STM32 chua home (NOT_HOMED). Goi ~/home truoc'
+            self.get_logger().error(res.message)
+            return res
         if req.data:
             self.cmd = list(self.state)        # lenh = vi tri thuc, khong giat
+            self.grip_hold = self.grip_topic   # lenh gripper cu (truoc home) khong duoc dong gripper lai
         self._send(T_CMD_ENABLE, b'\x01' if req.data else b'\x00')
         self.enabled = req.data
         self.enable_grace_until = self.get_clock().now().nanoseconds + int(0.3e9)
@@ -292,12 +310,16 @@ class Stm32Bridge(Node):
         res.success, res.message = True, 'ESTOP'
         return res
 
-    def _srv_set_zero(self, req, res):
+    def _srv_home(self, req, res):
         if self.enabled:
-            res.success, res.message = False, 'TAT truoc khi dat diem 0'
+            res.success, res.message = False, 'TAT truoc khi home'
             return res
-        self._send(T_CMD_SET_ZERO, bytes([0x0F]))
-        res.success, res.message = True, 'Da gui lenh lay vi tri hien tai lam 0 cho khop 1-4'
+        if self.state is None:
+            res.success, res.message = False, 'Chua nhan trang thai tu STM32'
+            return res
+        self._send(T_CMD_HOME)
+        res.success, res.message = True, 'Da gui lenh home (khoang 30 s). Theo doi ~/status: HOMING roi het NOT_HOMED'
+        self.get_logger().info(res.message)
         return res
 
     # ---------------- vong lap chinh ----------------
@@ -356,14 +378,22 @@ class Stm32Bridge(Node):
             return
         self.seq = (self.seq + 1) & 0xFFFF
         fw = self.ros_to_fw(self.cmd[:4])
-        us = self.grip_rad_to_us(self.cmd[4])
+        if (self.grip_hold is not None and self.grip_topic is not None
+                and abs(self.grip_topic - self.grip_hold) < 1e-4):
+            us = 0                             # firmware: 0 us = giu nguyen servo
+        else:
+            self.grip_hold = None
+            us = self.grip_rad_to_us(self.cmd[4])
         self._send(T_CMD_JOINT, struct.pack(FMT_CMD_JOINT, self.seq, *fw, us))
 
     def _update_status(self, status):
         if status != self.status:
             names = [n for b, n in STATUS_BITS.items() if status & (1 << b)]
-            log = self.get_logger().error if status & ERROR_MASK else self.get_logger().info
-            log(f'Trang thai STM32: {names or ["OK"]}')
+            _msg = f'Trang thai STM32: {names or ["OK"]}'
+            if status & ERROR_MASK:
+                self.get_logger().error(_msg)
+            else:
+                self.get_logger().info(_msg)
         self.status = status
         self.pub_status.publish(UInt16(data=status))
         in_grace = (self.enable_grace_until is not None
@@ -375,8 +405,10 @@ class Stm32Bridge(Node):
     # ---------------- gia lap STM32 (loopback) ----------------
 
     def _loopback_rx(self, msg_type, payload):
-        if msg_type == T_CMD_ENABLE:
-            self.lb_enabled = payload == b'\x01'
+        if msg_type == T_CMD_HOME and not self.lb_enabled:
+            self.lb_fw, self.lb_us, self.lb_homed = [0, 0, 0, 0], int(self.us_pts[0]), True
+        elif msg_type == T_CMD_ENABLE:
+            self.lb_enabled = payload == b'\x01' and self.lb_homed
         elif msg_type == T_CMD_ESTOP:
             self.lb_enabled = False
         elif msg_type == T_CMD_JOINT and self.lb_enabled:
@@ -387,7 +419,7 @@ class Stm32Bridge(Node):
                 self.lb_us = v[5]
 
     def _loopback_state(self):
-        status = ST_ENABLED if self.lb_enabled else 0
+        status = (ST_ENABLED if self.lb_enabled else 0) | (0 if self.lb_homed else ST_NOT_HOMED)
         return struct.pack(FMT_STATE, self.seq, *self.lb_fw, self.lb_us, status, 1)
 
 
