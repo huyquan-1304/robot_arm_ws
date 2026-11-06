@@ -145,8 +145,11 @@ class TwinMonitor(Node):
     def _on_status(self, msg):
         if self.status is not None and msg.data != self.status:
             names = [n for b, n in enumerate(STATUS_BITS) if msg.data & (1 << b)]
-            log = self.get_logger().error if msg.data & ERROR_MASK else self.get_logger().info
-            log(f'STM32 doi trang thai: {names or ["OFF"]}')
+            _msg = f'STM32 doi trang thai: {names or ["OFF"]}'
+            if msg.data & ERROR_MASK:
+                self.get_logger().error(_msg)
+            else:
+                self.get_logger().info(_msg)
         self.status = msg.data
 
     # ---------------- vong lap ----------------
