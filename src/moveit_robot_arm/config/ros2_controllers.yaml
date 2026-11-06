@@ -11,6 +11,10 @@ controller_manager:
       type: joint_trajectory_controller/JointTrajectoryController
 
 
+    wrist_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
 
@@ -34,4 +38,13 @@ gripper_controller:
       []
     state_interfaces:
       []
+    allow_nonzero_velocity_at_trajectory_end: true
+wrist_controller:
+  ros__parameters:
+    joints:
+      - JOINT_5
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
     allow_nonzero_velocity_at_trajectory_end: true

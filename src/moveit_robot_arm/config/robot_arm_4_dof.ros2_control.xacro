@@ -24,6 +24,7 @@
       <xacro:mock_joint joint="JOINT_2"/>
       <xacro:mock_joint joint="JOINT_3"/>
       <xacro:mock_joint joint="JOINT_4"/>
+      <xacro:mock_joint joint="JOINT_5"/>
       <xacro:mock_joint joint="GRIPPER_JOINT"/>
     </ros2_control>
 

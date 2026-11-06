@@ -15,6 +15,10 @@
         <joint name="JOINT_3"/>
         <joint name="JOINT_4"/>
     </group>
+    <!--Khop 5 xoay gripper, dieu khien rieng (khong nam trong nhom arm, khong can IK)-->
+    <group name="wrist">
+        <joint name="JOINT_5"/>
+    </group>
     <group name="gripper">
         <link name="GRIPPER_BASE"/>
         <link name="R_CRANK"/>
@@ -28,6 +32,7 @@
     <!--Nhom gop ca tay va kep, chi dung voi tu the dat ten (khong co IK)-->
     <group name="home_robot">
         <group name="arm"/>
+        <group name="wrist"/>
         <group name="gripper"/>
     </group>
     <!--GROUP STATES: Purpose: Define a named state for a particular group, in terms of joint values. This is useful to define states like 'folded arms'-->
@@ -36,6 +41,15 @@
         <joint name="JOINT_2" value="0"/>
         <joint name="JOINT_3" value="0"/>
         <joint name="JOINT_4" value="0"/>
+    </group_state>
+    <group_state name="zero" group="wrist">
+        <joint name="JOINT_5" value="0"/>
+    </group_state>
+    <group_state name="plus90" group="wrist">
+        <joint name="JOINT_5" value="1.5708"/>
+    </group_state>
+    <group_state name="minus90" group="wrist">
+        <joint name="JOINT_5" value="-1.5708"/>
     </group_state>
     <group_state name="close" group="gripper">
         <joint name="GRIPPER_JOINT" value="0"/>
@@ -48,14 +62,15 @@
         <joint name="JOINT_2" value="0"/>
         <joint name="JOINT_3" value="0"/>
         <joint name="JOINT_4" value="0"/>
+        <joint name="JOINT_5" value="0"/>
         <joint name="GRIPPER_JOINT" value="1.161"/>
     </group_state>
     <!--Tu the cam vat khi xoay: dau kep tai (0.20, 0, 0.32), day vat cao 0.32 m, tren lidar-->
     <group_state name="carry" group="arm">
-        <joint name="JOINT_1" value="-0.0354"/>
-        <joint name="JOINT_2" value="0.0319"/>
-        <joint name="JOINT_3" value="-0.2629"/>
-        <joint name="JOINT_4" value="-0.2948"/>
+        <joint name="JOINT_1" value="-0.0371"/>
+        <joint name="JOINT_2" value="0.0301"/>
+        <joint name="JOINT_3" value="-0.2344"/>
+        <joint name="JOINT_4" value="-0.2645"/>
     </group_state>
     <!--Kep vat 40 mm: tiep xuc o 0.651 rad, ra lenh 0.62 rad de ep them khoang 1.7 mm moi ben-->
     <group_state name="grasp_40mm" group="gripper">
@@ -66,7 +81,16 @@
     <!--DISABLE COLLISIONS: By default it is assumed that any link of the robot could potentially come into collision with any other link in the robot. This tag disables collision checking between a specified pair of links. -->
     <disable_collisions link1="GRIPPER_BASE" link2="LG_FINGER" reason="Never"/>
     <disable_collisions link1="GRIPPER_BASE" link2="LINK_3" reason="Never"/>
-    <disable_collisions link1="GRIPPER_BASE" link2="LINK_4" reason="Adjacent"/>
+    <disable_collisions link1="GRIPPER_BASE" link2="LINK_4" reason="Never"/>
+    <disable_collisions link1="GRIPPER_BASE" link2="WRIST_LINK" reason="Adjacent"/>
+    <disable_collisions link1="LINK_4" link2="WRIST_LINK" reason="Adjacent"/>
+    <disable_collisions link1="LINK_3" link2="WRIST_LINK" reason="Never"/>
+    <disable_collisions link1="LG_FINGER" link2="WRIST_LINK" reason="Never"/>
+    <disable_collisions link1="L_BAR" link2="WRIST_LINK" reason="Never"/>
+    <disable_collisions link1="L_CRANK" link2="WRIST_LINK" reason="Never"/>
+    <disable_collisions link1="RG_FINGER" link2="WRIST_LINK" reason="Never"/>
+    <disable_collisions link1="R_BAR" link2="WRIST_LINK" reason="Never"/>
+    <disable_collisions link1="R_CRANK" link2="WRIST_LINK" reason="Never"/>
     <disable_collisions link1="GRIPPER_BASE" link2="L_BAR" reason="Adjacent"/>
     <disable_collisions link1="GRIPPER_BASE" link2="L_CRANK" reason="Adjacent"/>
     <disable_collisions link1="GRIPPER_BASE" link2="RG_FINGER" reason="Never"/>

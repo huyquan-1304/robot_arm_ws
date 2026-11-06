@@ -13,7 +13,7 @@ Thu tu khoi dong:
   3. robot_state_publisher voi URDF use_gazebo:=true
   4. Dua robot vao Gazebo (sau 3 giay)
   5. Sau khi robot vao Gazebo: bat joint_state_broadcaster
-  6. Sau do: bat arm_controller va gripper_controller
+  6. Sau do: bat arm_controller, gripper_controller va wrist_controller
   7. Sau khi arm_controller chay: bat move_group va RViz
 """
 
@@ -167,6 +167,7 @@ def generate_launch_description():
     jsb_spawner = spawner('joint_state_broadcaster')
     arm_spawner = spawner('arm_controller')
     gripper_spawner = spawner('gripper_controller')
+    wrist_spawner = spawner('wrist_controller')       # khop 5 xoay gripper
 
     # ------------------------------------------------------------------
     # [MOI] MoveIt + RViz, dung thoi gian mo phong
@@ -215,7 +216,7 @@ def generate_launch_description():
         # joint_state_broadcaster chay xong moi bat controller tay va kep
         RegisterEventHandler(OnProcessExit(
             target_action=jsb_spawner,
-            on_exit=[arm_spawner, gripper_spawner],
+            on_exit=[arm_spawner, gripper_spawner, wrist_spawner],
         )),
         # Controller tay da san sang moi bat MoveIt va RViz
         RegisterEventHandler(OnProcessExit(

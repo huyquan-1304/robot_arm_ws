@@ -16,18 +16,27 @@
   <!-- ========================================================= -->
   <!-- GRIPPER FIN RAY, CO CAU 4 KHAU BINH HANH, MESH THAT TU STL -->
   <!-- Toa do lay tu STL, quy ve he LINK_4 (goc tai tam lo khop JOINT_4) -->
-  <!-- Mat bat gripper cua LINK_4 la mat phang x = 78.371 mm, kich thuoc 25 x 60 mm -->
-  <!-- Goc GRIPPER_BASE dat tai tam mat bat, y = 0, z = 13.345 mm -->
-  <!-- Mat phang chua 2 ngon nam o y = +13.5 mm so voi mat phang LINK_4 -->
+  <!-- [03/11/2026] Khau 4 moi (JEE_ver2) + servo MG996R xoay gripper (JOINT_5) -->
+  <!--   Lay tu file STEP gripper+j4: truc JOINT_5 = truc ra servo, song song truc x cua LINK_4 -->
+  <!--   Goc JOINT_5 tai mat dinh servo, x = 73.24 mm, y = -4.50 mm, z = 13.00 mm trong he LINK_4 -->
+  <!--   GRIPPER_BASE lech +4.51 mm theo y so voi truc JOINT_5 (khop voi STEP sai so duoi 0.1 mm) -->
+  <!--   TCP lech 13.5 + 4.5 = 18 mm khoi truc JOINT_5: xoay JOINT_5 thi mui ngon chay tren vong tron R 18 mm -->
+  <!--   Mat phang truc J4: day khau 4 moi dat tai z = -17 mm nhu khau cu (gia dinh, kiem tra tren tay that) -->
+  <!-- Mat phang chua 2 ngon nam o y = +13.5 mm so voi mat phang GRIPPER_BASE -->
   <!-- Moi ngon treo bang 2 thanh song song (tay quay trong dai 33 mm, thanh ngoai dai 34 mm) -->
   <!-- 2 banh rang an khop nen 2 ben quay nguoc chieu, 2 ngon mo deu va luon song song -->
   <!-- Chi GRIPPER_JOINT duoc dieu khien, 5 khop con lai la mimic chay theo -->
   <!-- ========================================================= -->
 
-  <!-- Tam mat bat gripper trong he LINK_4, don vi met -->
-  <xacro:property name="grip_face_x" value="0.078371"/>
-  <xacro:property name="grip_face_y" value="0.0"/>
-  <xacro:property name="grip_face_z" value="0.013345"/>
+  <!-- Goc JOINT_5 (mat dinh servo, tren truc ra servo) trong he LINK_4, don vi met -->
+  <xacro:property name="j5_x" value="0.07324"/>
+  <xacro:property name="j5_y" value="-0.00450"/>
+  <xacro:property name="j5_z" value="0.01300"/>
+  <!-- Goc GRIPPER_BASE so voi truc JOINT_5 (theo y cua LINK_4) -->
+  <xacro:property name="j5_to_grip_y" value="0.00451"/>
+  <!-- Gioi han JOINT_5 theo servo: +-90 do, 120 do/s (WRIST_DPS trong firmware wrist.c) -->
+  <xacro:property name="j5_limit" value="1.5708"/>
+  <xacro:property name="j5_velocity" value="2.094"/>
 
   <!-- Goc quay tay quay khi mo het (rad). 0 la dong, 2 ngon cham nhau giua mat bat -->
   <!-- 0.6 rad thi moi ngon dat ra 18.6 mm. CHUA CO SO DO THAT, sua theo co cau -->
@@ -37,8 +46,9 @@
   <xacro:property name="grip_effort" value="2.0"/>
   <xacro:property name="grip_velocity" value="2.0"/>
 
-  <!-- Khoi luong de gripper tinh tu the tich STL (1.02 g/cm3). Neu de co servo that thi tang len -->
-  <xacro:property name="grip_base_mass" value="0.04966"/>
+  <!-- Khoi luong de gripper KEM servo dong mo MG996R: ca cum gripper + 2 servo khoang 155 g (do that) -->
+  <!-- tru servo J5 55 g (nam trong LINK_4) va 6 chi tiet chuyen dong khoang 18 g -->
+  <xacro:property name="grip_base_mass" value="0.0818"/>
 
 
   <!-- ========================================================= -->
@@ -281,14 +291,14 @@
   <xacro:make_link
     name="LINK_4"
     mesh="LINK_4.STL"
-    mass="0.06452"
-    ixx="1.7004E-05"
-    iyy="7.0959E-05"
-    izz="7.4844E-05"
-    ixy="8.6595E-08"
-    ixz="-6.2201E-06"
-    iyz="-5.7601E-09"
-    origin_xyz="0.021089 4.4987E-05 -0.0042584"
+    mass="0.100"
+    ixx="3.0710E-05"
+    iyy="8.8495E-05"
+    izz="9.1115E-05"
+    ixy="-5.1071E-06"
+    ixz="-1.8775E-05"
+    iyz="-2.3916E-06"
+    origin_xyz="0.036127 0.003133 0.005315"
     rgba="0.79216 0.81961 0.93333 1"
   />
 
@@ -342,11 +352,39 @@
     </collision>
   </link>
 
-  <!-- De gripper ap phang len mat bat cua LINK_4, khong xoay -->
-  <joint name="LINK_4_TO_GRIPPER_BASE" type="fixed">
+  <!-- ===== KHOP 5: servo MG996R xoay gripper quanh truc x cua LINK_4 ===== -->
+  <!-- Than servo gan cung vao LINK_4 (da gop trong LINK_4.STL). WRIST_LINK la truc ra servo -->
+  <!-- q5 = 0: gripper dung huong nhu file STEP. Chieu duong theo quy tac ban tay phai quanh +x -->
+  <link name="WRIST_LINK">
+    <inertial>
+      <origin xyz="-0.00482 0 0" rpy="0 0 0"/>
+      <mass value="0.005"/>
+      <inertia ixx="2.4E-08" iyy="1.1E-07" izz="1.1E-07" ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://robot_arm_4_dof/meshes/WRIST_LINK.STL"/>
+      </geometry>
+      <material name="">
+        <color rgba="0.9 0.9 0.9 1"/>
+      </material>
+    </visual>
+  </link>
+  <joint name="JOINT_5" type="revolute">
     <parent link="LINK_4"/>
+    <child link="WRIST_LINK"/>
+    <origin xyz="${j5_x} ${j5_y} ${j5_z}" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="${-j5_limit}" upper="${j5_limit}" effort="1.0" velocity="${j5_velocity}"/>
+    <dynamics damping="0.01" friction="0.0"/>
+  </joint>
+
+  <!-- De gripper gan cung vao truc servo J5, khong xoay -->
+  <joint name="WRIST_TO_GRIPPER_BASE" type="fixed">
+    <parent link="WRIST_LINK"/>
     <child link="GRIPPER_BASE"/>
-    <origin xyz="${grip_face_x} ${grip_face_y} ${grip_face_z}" rpy="0 0 0"/>
+    <origin xyz="0 ${j5_to_grip_y} 0" rpy="0 0 0"/>
   </joint>
 
 
@@ -609,6 +647,7 @@
   <xacro:gazebo_link name="LINK_2" color="Blue"/>
   <xacro:gazebo_link name="LINK_3" color="White"/>
   <xacro:gazebo_link name="LINK_4" color="Blue"/>
+  <xacro:gazebo_link name="WRIST_LINK" color="Grey"/>
   <xacro:gazebo_link name="GRIPPER_BASE" color="Grey"/>
   <xacro:gazebo_link name="R_CRANK" color="DarkGrey"/>
   <xacro:gazebo_link name="L_CRANK" color="DarkGrey"/>
@@ -626,6 +665,7 @@
   <xacro:gazebo_joint name="JOINT_2"/>
   <xacro:gazebo_joint name="JOINT_3"/>
   <xacro:gazebo_joint name="JOINT_4"/>
+  <xacro:gazebo_joint name="JOINT_5"/>
   <xacro:gazebo_joint name="GRIPPER_JOINT"/>
   <xacro:gazebo_joint name="R_FINGER_JOINT"/>
   <xacro:gazebo_joint name="R_BAR_JOINT"/>
@@ -652,6 +692,7 @@
       <xacro:control_joint name="JOINT_2"/>
       <xacro:control_joint name="JOINT_3"/>
       <xacro:control_joint name="JOINT_4"/>
+      <xacro:control_joint name="JOINT_5"/>
 
       <!-- Chi GRIPPER_JOINT nhan lenh, 5 khop mimic chay theo the <mimic> trong URDF -->
       <xacro:control_joint name="GRIPPER_JOINT" initial="0.0"/>
@@ -680,7 +721,7 @@
   <!-- ROS2 CONTROL CHO ROBOT THAT, CHI BAT KHI use_real_hw=true -->
   <!-- Plugin co san: ghi lenh khop ra /robot_joint_commands, doc trang thai tu /robot_joint_states -->
   <!-- Node stm32_bridge_node.py chuyen 2 topic nay qua USART xuong STM32 -->
-  <!-- Chi khai bao 5 khop co dong co. 5 khop mimic cua kep do robot_state_publisher tu tinh -->
+  <!-- Chi khai bao 6 khop co dong co (4 stepper, servo J5, servo kep). 5 khop mimic cua kep do robot_state_publisher tu tinh -->
   <!-- ========================================================= -->
 
   <xacro:if value="$(arg use_real_hw)">
@@ -696,6 +737,8 @@
       <xacro:control_joint name="JOINT_2"/>
       <xacro:control_joint name="JOINT_3"/>
       <xacro:control_joint name="JOINT_4"/>
+      <!-- JOINT_5: servo khong co phan hoi, bridge phat lai goc da ra lenh -->
+      <xacro:control_joint name="JOINT_5"/>
       <xacro:control_joint name="GRIPPER_JOINT" initial="0.0"/>
     </ros2_control>
   </xacro:if>

@@ -32,7 +32,7 @@ Trong RViz (twin:=true, mac dinh):
 Thu tu khoi dong:
   1. robot_state_publisher, (stm32_emulator), stm32_bridge, ros2_control_node, (twin)
   2. Sau 3 s (cho trang thai khop tu STM32 ve on dinh): joint_state_broadcaster
-  3. Sau do: arm_controller, gripper_controller
+  3. Sau do: arm_controller, gripper_controller, wrist_controller
   4. Sau khi arm_controller chay: move_group (va RViz neu use_rviz:=true)
 """
 
@@ -170,6 +170,7 @@ def launch_setup(context, *args, **kwargs):
     jsb = spawner('joint_state_broadcaster')
     arm = spawner('arm_controller')
     gripper = spawner('gripper_controller')
+    wrist = spawner('wrist_controller')     # khop 5 xoay gripper
 
     move_group = Node(
         package='moveit_ros_move_group',
@@ -192,7 +193,7 @@ def launch_setup(context, *args, **kwargs):
     actions += [
         # Cho trang thai that ve truoc khi bat controller, tranh controller giu vi tri 0
         TimerAction(period=3.0, actions=[jsb]),
-        RegisterEventHandler(OnProcessExit(target_action=jsb, on_exit=[arm, gripper])),
+        RegisterEventHandler(OnProcessExit(target_action=jsb, on_exit=[arm, gripper, wrist])),
         RegisterEventHandler(OnProcessExit(target_action=arm, on_exit=after_arm)),
     ]
     return actions
@@ -203,7 +204,7 @@ def generate_launch_description():
         DeclareLaunchArgument('hw', default_value='real',
                               description='real: robot that | emulator: STM32 gia lap de xem truoc | '
                                           'loopback: gia lap tho'),
-        DeclareLaunchArgument('port', default_value='/dev/ttyUSB0',
+        DeclareLaunchArgument('port', default_value='/dev/stm32',
                               description='Cong noi tiep toi USART1 cua STM32 (chi dung khi hw:=real)'),
         DeclareLaunchArgument('use_rviz', default_value='false',
                               description='Mo RViz tren may nay (Pi khong co man hinh thi de false)'),

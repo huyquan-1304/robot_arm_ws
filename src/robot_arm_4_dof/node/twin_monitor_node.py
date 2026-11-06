@@ -75,13 +75,13 @@ class TwinMonitor(Node):
         p('arm_joints', ['JOINT_1', 'JOINT_2', 'JOINT_3', 'JOINT_4'])
         p('gripper_joint', 'GRIPPER_JOINT')
         # Phai giong constraints.<khop>.trajectory cua arm_controller trong final.yaml
-        p('trajectory_tolerance_rad', [0.10, 0.03, 0.04, 0.10])
+        p('trajectory_tolerance_rad', [0.10, 0.03, 0.08, 0.10])  # = constraints trong final.yaml
         p('report_period_s', 1.0)
         # Ban: ten va [tam x, y, z, kich thuoc x, y, z] (m), lay tu worlds/pick_place.sdf
         p('box_names', ['table_A', 'table_B'])
-        p('box_data', [0.32, 0.0, 0.0975, 0.12, 0.30, 0.195,
+        p('box_data', [0.35, 0.0, 0.0875, 0.12, 0.30, 0.175,
                        0.0, -0.32, 0.0975, 0.30, 0.12, 0.195])
-        p('cube_xyz', [0.32, 0.0, 0.215])
+        p('cube_xyz', [0.35, 0.0, 0.195])
         p('cube_size', 0.04)
         p('tcp_link', 'GRIPPER_TCP')
         p('world_frame', 'world')

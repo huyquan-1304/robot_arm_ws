@@ -11,6 +11,9 @@ controller_manager:
     gripper_controller:
       type: joint_trajectory_controller/JointTrajectoryController
 
+    wrist_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
 
 # [MOI] Chi phat 5 khop that len /joint_states
 # Cac khop mimic cua gripper bi plugin Gazebo dat ten co duoi _mimic, khong co trong URDF.
@@ -23,6 +26,7 @@ joint_state_broadcaster:
       - JOINT_2
       - JOINT_3
       - JOINT_4
+      - JOINT_5
       - GRIPPER_JOINT
     interfaces:
       - position
@@ -42,18 +46,21 @@ arm_controller:
       - position
       - velocity
     allow_partial_joints_goal: true
+    # Bat lai controller (vd sau khi home) thi lay vi tri THUC lam diem bat dau, khong giu lenh cu
+    set_last_command_interface_value_as_state_on_activation: false
     # goal: sai lech cho phep o CUOI quy dao. Het quy dao + goal_time ma chua toi thi THAT BAI.
     # trajectory: sai lech cho phep TRONG LUC chay (vi tri thuc so voi vi tri lenh cung thoi diem).
     #   Bat truong hop cac khop lech nhau giua duong (vd khop 2 toi truoc khop 3, 4) -> controller
     #   huy quy dao, node gap dung lai TRUOC khi tay di sai duong va va vao vat.
     #   Gia tri tinh tu toc do dinh x do tre ca chuoi Pi -> STM32 -> ZDT (khoang 80 ms) x 2 lan du:
-    #   J1, J4 chay toi 0.65 rad/s -> tre ~0.05 rad.  J2 toi da 2 do/s, J3 8 do/s -> tre rat nho.
+    #   J1, J4 chay toi 0.65 rad/s -> tre ~0.05 rad. J2 toi da 8 do/s (0.14 rad/s) -> tre ~0.011 rad.
+    #   J3 toi da 25 do/s (0.44 rad/s) -> tre ~0.035 rad, x 2 lan du = 0.07 -> dat 0.08.
     constraints:
       goal_time: 2.0
       stopped_velocity_tolerance: 0.01
       JOINT_1: {trajectory: 0.10, goal: 0.01}   # 0.01 rad, khoang 0.6 do
       JOINT_2: {trajectory: 0.03, goal: 0.01}
-      JOINT_3: {trajectory: 0.04, goal: 0.01}
+      JOINT_3: {trajectory: 0.08, goal: 0.01}
       JOINT_4: {trajectory: 0.10, goal: 0.01}
 
 
@@ -70,3 +77,18 @@ gripper_controller:
       - position
       - velocity
     allow_partial_joints_goal: true
+    set_last_command_interface_value_as_state_on_activation: false
+
+
+# Khop 5: servo MG996R xoay gripper. Servo khong co phan hoi vi tri, bridge phat lai goc da ra lenh
+wrist_controller:
+  ros__parameters:
+    joints:
+      - JOINT_5
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    allow_partial_joints_goal: true
+    set_last_command_interface_value_as_state_on_activation: false

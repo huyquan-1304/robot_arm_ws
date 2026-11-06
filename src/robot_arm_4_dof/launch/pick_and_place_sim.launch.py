@@ -2,7 +2,10 @@
 """Mo phong robot_arm_4_dof trong Gazebo Harmonic + dieu khien bang MoveIt 2 (ROS 2 Jazzy).
 
 Chay:
-  ros2 launch robot_arm_4_dof simulation_robot.launch.py
+  ros2 launch robot_arm_4_dof pick_and_place_sim.launch.py
+  ros2 launch robot_arm_4_dof pick_and_place_sim.launch.py headless:=true
+    headless:=true: Gazebo chi tinh vat ly, KHONG mo cua so 3D (nhanh hon nhieu trong VMware).
+    Xem robot tren RViz. Vat (khoi lap phuong) khong hien tren RViz.
 
 KHONG chay kem demo.launch.py. File nay da tu bat move_group va RViz.
 Neu chay ca hai se co 2 node /controller_manager xung dot nhau.
@@ -13,7 +16,7 @@ Thu tu khoi dong:
   3. robot_state_publisher voi URDF use_gazebo:=true
   4. Dua robot vao Gazebo (sau 3 giay)
   5. Sau khi robot vao Gazebo: bat joint_state_broadcaster
-  6. Sau do: bat arm_controller va gripper_controller
+  6. Sau do: bat arm_controller, gripper_controller va wrist_controller
   7. Sau khi arm_controller chay: bat move_group va RViz
 """
 
@@ -25,13 +28,16 @@ import xacro
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (
+    DeclareLaunchArgument,
     IncludeLaunchDescription,
     RegisterEventHandler,
     SetEnvironmentVariable,
     TimerAction,
 )
+from launch.conditions import IfCondition, UnlessCondition
 from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from moveit_configs_utils import MoveItConfigsBuilder
 
@@ -110,12 +116,24 @@ def generate_launch_description():
         os.environ.get('GZ_SIM_RESOURCE_PATH', ''),
     ]))
 
+    # [03/11] headless:=true them co -s: chi chay Gazebo server (vat ly), khong mo GUI 3D.
+    # Trong VMware khong co GPU, GUI ve bang CPU nen lam mo phong cham hon thoi gian thuc nhieu lan.
+    headless = LaunchConfiguration('headless')
+    gz_launch = PythonLaunchDescriptionSource(str(gazebo_share / 'launch' / 'gz_sim.launch.py'))
     gazebo = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(str(gazebo_share / 'launch' / 'gz_sim.launch.py')),
+        gz_launch,
         launch_arguments={
             # [PICK PLACE] Dung file world tuy chinh thay cho empty.sdf
             'gz_args': f'-r -v 3 {world_file} --render-engine ogre',
         }.items(),
+        condition=UnlessCondition(headless),
+    )
+    gazebo_headless = IncludeLaunchDescription(
+        gz_launch,
+        launch_arguments={
+            'gz_args': f'-s -r -v 3 {world_file}',
+        }.items(),
+        condition=IfCondition(headless),
     )
 
     # [MOI] Noi dong ho mo phong Gazebo sang ROS. Thieu buoc nay thi cac node
@@ -173,6 +191,7 @@ def generate_launch_description():
     jsb_spawner = spawner('joint_state_broadcaster')
     arm_spawner = spawner('arm_controller')
     gripper_spawner = spawner('gripper_controller')
+    wrist_spawner = spawner('wrist_controller')       # khop 5 xoay gripper
 
     # ------------------------------------------------------------------
     # [MOI] MoveIt + RViz, dung thoi gian mo phong
@@ -207,8 +226,11 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        DeclareLaunchArgument('headless', default_value='false',
+                              description='true: chi chay Gazebo server, khong mo GUI 3D'),
         SetEnvironmentVariable('GZ_SIM_RESOURCE_PATH', resource_path),
         gazebo,
+        gazebo_headless,
         clock_bridge,
         state_publisher,
         TimerAction(period=3.0, actions=[spawn_robot]),
@@ -221,7 +243,7 @@ def generate_launch_description():
         # joint_state_broadcaster chay xong moi bat controller tay va kep
         RegisterEventHandler(OnProcessExit(
             target_action=jsb_spawner,
-            on_exit=[arm_spawner, gripper_spawner],
+            on_exit=[arm_spawner, gripper_spawner, wrist_spawner],
         )),
         # Controller tay da san sang moi bat MoveIt va RViz
         RegisterEventHandler(OnProcessExit(

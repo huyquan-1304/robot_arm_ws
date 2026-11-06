@@ -48,8 +48,8 @@ POSES = {
 }
 GRIP_OPEN, GRIP_GRASP = 1.141, 0.62
 SPEED_NORMAL, SPEED_SLOW = 0.65, 0.25
-REAL_MAX_SPEED = [math.radians(v) for v in (80.0, 2.0, 8.0, 80.0)]
-REAL_MAX_ACC = [math.radians(v) for v in (120.0, 2.0, 10.0, 200.0)]
+REAL_MAX_SPEED = [math.radians(v) for v in (80.0, 8.0, 25.0, 80.0)]
+REAL_MAX_ACC = [math.radians(v) for v in (120.0, 10.0, 35.0, 200.0)]
 SEQUENCE = [
     ('grip', GRIP_OPEN), ('arm', 'HOME', SPEED_NORMAL),
     ('arm', 'PRE_A', SPEED_NORMAL), ('arm', 'GRASP_A', SPEED_SLOW), ('grip', GRIP_GRASP),
