@@ -26,14 +26,14 @@ mecanum_drive_controller:
       base_frame_offset: { x: 0.0, y: 0.0, theta: 0.0 }
       # Phai trung voi wheel_radius trong amm_base.urdf.xacro
       wheels_radius: 0.040    # banh 80 mm tam thoi. Banh 75 mm: 0.0372
-      # l_x + l_y = wheel_x + wheel_y = 0.085 + 0.146 = 0.231 (so thiet ke)
+      # l_x + l_y = wheel_x + wheel_y = 0.085 + 0.144 = 0.229 (ban ve CAD, khop MEC_LY_MM trong firmware)
       #
       # THI NGHIEM "truot khi xoay": dat nho hon so that 6 %.
       # Xe that: khi xoay, con lan truot nen than xe quay IT hon muc banh "bao".
       # Dat 0.218 thi odometry bao goc xoay NHIEU hon goc that khoang 6 %,
       # giong hien tuong do. Con quay IMU khong bi anh huong.
-      # Tro ve so thiet ke: 0.231
-      sum_of_robot_center_projection_on_X_Y_axis: 0.231
+      # Tro ve so thiet ke: 0.229
+      sum_of_robot_center_projection_on_X_Y_axis: 0.229
 
     # base_footprint (khong phai base_link) vi robot_state_publisher da phat
     # base_footprint → base_link. Neu de base_link, base_link se co 2 cha.
