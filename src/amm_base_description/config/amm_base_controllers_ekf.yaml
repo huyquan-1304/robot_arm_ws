@@ -1,0 +1,8 @@
+# Ghi de amm_base_controllers.yaml khi chay voi EKF (use_ekf:=true).
+# EKF phat TF odom → base_footprint, nen controller phai tat TF cua no.
+# Hai node cung phat 1 TF thi xe se nhay qua lai trong RViz.
+# Controller van phat /odom (topic) de EKF doc.
+
+mecanum_drive_controller:
+  ros__parameters:
+    enable_odom_tf: false

@@ -1,0 +1,241 @@
+<?xml version="1.0"?>
+<!--
+  Phan Gazebo Harmonic + ros2_control cho xe AMM.
+
+  drive_mode = control (mac dinh)
+    /cmd_vel (TwistStamped) → mecanum_drive_controller → 4 lenh van toc banh (rad/s)
+    → gz_ros2_control quay 4 khop banh → ma sat dinh huong day xe di.
+    Controller tu tinh /odom va TF odom → base_footprint tu toc do 4 banh.
+    Gazebo phat them /ground_truth/odom (vi tri that) de so sai so odometry.
+
+  drive_mode = velocity (che do ngay 1, du phong)
+    /cmd_vel (Twist) keo thang than xe, banh khong quay, /odom khong co sai so.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" xmlns:gz="http://gazebosim.org/schema">
+
+  <xacro:property name="drive_mode" value="$(arg drive_mode)"/>
+
+  <!-- ============================================================ -->
+  <!-- CHE DO CONTROL: ros2_control + ma sat Mecanum                 -->
+  <!-- ============================================================ -->
+  <xacro:if value="${drive_mode == 'control'}">
+
+    <!--
+      Ma sat dinh huong: banh chi bam san theo 1 huong cheo 45 do (mu = 1),
+      huong vuong goc truot tu do (mu2 = 0), giong con lan.
+      Huong bam (fdir1) khai bao trong he truc than xe, nen khong quay theo banh.
+      Bo tri chu X, khop voi cong thuc cua mecanum_drive_controller:
+        truoc trai, sau phai: bam theo (1, -1)   ω = (vx − vy ∓ k·ωz) / r
+        truoc phai, sau trai: bam theo (1,  1)   ω = (vx + vy ± k·ωz) / r
+    -->
+    <xacro:macro name="mecanum_friction" params="prefix fdir">
+      <gazebo reference="${prefix}_wheel_link">
+        <collision>
+          <surface>
+            <friction>
+              <ode>
+                <mu>1.0</mu>
+                <mu2>0.0</mu2>
+                <fdir1 gz:expressed_in="${gz_body_link}">${fdir}</fdir1>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+      </gazebo>
+    </xacro:macro>
+    <xacro:mecanum_friction prefix="front_left"  fdir="1 -1 0"/>
+    <xacro:mecanum_friction prefix="front_right" fdir="1 1 0"/>
+    <xacro:mecanum_friction prefix="rear_left"   fdir="1 1 0"/>
+    <xacro:mecanum_friction prefix="rear_right"  fdir="1 -1 0"/>
+
+    <!-- 4 khop banh: lenh van toc, doc ve vi tri + van toc -->
+    <xacro:macro name="wheel_control_joint" params="name">
+      <joint name="${name}">
+        <command_interface name="velocity"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+    </xacro:macro>
+
+    <ros2_control name="AmmBaseGazeboSystem" type="system">
+      <hardware>
+        <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+      </hardware>
+      <xacro:wheel_control_joint name="front_left_wheel_joint"/>
+      <xacro:wheel_control_joint name="front_right_wheel_joint"/>
+      <xacro:wheel_control_joint name="rear_left_wheel_joint"/>
+      <xacro:wheel_control_joint name="rear_right_wheel_joint"/>
+    </ros2_control>
+
+    <gazebo>
+      <plugin filename="gz_ros2_control-system"
+              name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+        <parameters>$(find amm_base_description)/config/amm_base_controllers.yaml</parameters>
+        <!-- File sau ghi de file truoc: khi dung EKF thi tat TF cua controller -->
+        <xacro:if value="$(arg use_ekf)">
+          <parameters>$(find amm_base_description)/config/amm_base_controllers_ekf.yaml</parameters>
+        </xacro:if>
+        <!-- Doi ten topic cua controller sang ten chuan cho teleop, RViz, Nav2 -->
+        <ros>
+          <remapping>/mecanum_drive_controller/reference:=/cmd_vel</remapping>
+          <remapping>/mecanum_drive_controller/odometry:=/odom</remapping>
+          <remapping>/mecanum_drive_controller/tf_odometry:=/tf</remapping>
+        </ros>
+      </plugin>
+
+      <!-- Vi tri that cua xe, chi de so sai so. KHONG bridge TF cua plugin nay -->
+      <plugin filename="gz-sim-odometry-publisher-system"
+              name="gz::sim::systems::OdometryPublisher">
+        <odom_frame>odom</odom_frame>
+        <robot_base_frame>base_footprint</robot_base_frame>
+        <odom_topic>/ground_truth/odom</odom_topic>
+        <tf_topic>/ground_truth/tf</tf_topic>
+        <odom_publish_frequency>30</odom_publish_frequency>
+        <dimensions>2</dimensions>
+      </plugin>
+    </gazebo>
+
+  </xacro:if>
+
+  <!-- ============================================================ -->
+  <!-- CHE DO VELOCITY: nhu ngay 1                                   -->
+  <!-- ============================================================ -->
+  <xacro:if value="${drive_mode == 'velocity'}">
+
+    <xacro:macro name="gz_wheel_slippery" params="prefix">
+      <gazebo reference="${prefix}_wheel_link">
+        <mu1>0.05</mu1>
+        <mu2>0.05</mu2>
+      </gazebo>
+    </xacro:macro>
+    <xacro:gz_wheel_slippery prefix="front_left"/>
+    <xacro:gz_wheel_slippery prefix="front_right"/>
+    <xacro:gz_wheel_slippery prefix="rear_left"/>
+    <xacro:gz_wheel_slippery prefix="rear_right"/>
+
+    <gazebo>
+      <plugin filename="gz-sim-velocity-control-system"
+              name="gz::sim::systems::VelocityControl">
+      </plugin>
+      <plugin filename="gz-sim-odometry-publisher-system"
+              name="gz::sim::systems::OdometryPublisher">
+        <odom_frame>odom</odom_frame>
+        <robot_base_frame>base_footprint</robot_base_frame>
+        <odom_publish_frequency>50</odom_publish_frequency>
+        <dimensions>2</dimensions>
+      </plugin>
+      <plugin filename="gz-sim-joint-state-publisher-system"
+              name="gz::sim::systems::JointStatePublisher">
+      </plugin>
+    </gazebo>
+
+  </xacro:if>
+
+  <!-- ============================================================ -->
+  <!-- CAM BIEN (ca 2 che do)                                        -->
+  <!-- ============================================================ -->
+  <!-- Lidar 2D: thong so gan RPLIDAR A1 [UOC LUONG, doi theo lidar that] -->
+  <gazebo reference="lidar_link">
+    <sensor name="lidar" type="gpu_lidar">
+      <topic>scan</topic>
+      <gz_frame_id>lidar_link</gz_frame_id>
+      <update_rate>10</update_rate>
+      <always_on>true</always_on>
+      <visualize>true</visualize>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>360</samples>
+            <resolution>1</resolution>
+            <min_angle>-3.14159</min_angle>
+            <max_angle>3.14159</max_angle>
+          </horizontal>
+        </scan>
+        <range>
+          <min>0.15</min>
+          <max>12.0</max>
+          <resolution>0.01</resolution>
+        </range>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.01</stddev>
+        </noise>
+      </lidar>
+    </sensor>
+  </gazebo>
+
+  <!--
+    IMU Hiwonder IM10A, che do 6 truc (con quay + gia toc ke, khong tu ke).
+    Nhieu lay theo thong so hang:
+      con quay : nhieu 0.028-0.07 °/s RMS (bang thong 100 Hz) → stddev 0.07 °/s = 0.00122 rad/s
+      gia toc  : nhieu 0.75-1 mg RMS → stddev 1 mg = 0.0098 m/s²
+    Bias: hang ghi do troi diem 0 chua hieu chuan ±0.5-1 °/s, module tu hieu chuan con quay
+    nhung con du. Mo phong dat bias du 0.06 °/s = 0.001 rad/s [UOC LUONG].
+    Gazebo chon bias 1 lan luc khoi dong, dau am hoac duong ngau nhien.
+    Gazebo tu dien covariance = stddev² vao message /imu.
+    Tat orientation: Gazebo se cho goc that khong nhieu, dung no la "gian lan".
+    EKF chi dung van toc goc z.
+  -->
+  <xacro:property name="gyro_noise"      value="0.00122"/>  <!-- rad/s -->
+  <xacro:property name="gyro_bias"       value="0.001"/>    <!-- rad/s -->
+  <xacro:property name="gyro_bias_std"   value="0.0002"/>   <!-- rad/s -->
+  <xacro:property name="accel_noise"     value="0.0098"/>   <!-- m/s² -->
+  <xacro:property name="accel_bias"      value="0.02"/>     <!-- m/s² -->
+  <xacro:property name="accel_bias_std"  value="0.005"/>    <!-- m/s² -->
+
+  <xacro:macro name="imu_noise" params="stddev bias bias_std">
+    <noise type="gaussian">
+      <mean>0.0</mean>
+      <stddev>${stddev}</stddev>
+      <bias_mean>${bias}</bias_mean>
+      <bias_stddev>${bias_std}</bias_stddev>
+    </noise>
+  </xacro:macro>
+
+  <gazebo reference="imu_link">
+    <sensor name="imu" type="imu">
+      <topic>imu</topic>
+      <gz_frame_id>imu_link</gz_frame_id>
+      <update_rate>100</update_rate>
+      <always_on>true</always_on>
+      <imu>
+        <angular_velocity>
+          <x><xacro:imu_noise stddev="${gyro_noise}" bias="${gyro_bias}" bias_std="${gyro_bias_std}"/></x>
+          <y><xacro:imu_noise stddev="${gyro_noise}" bias="${gyro_bias}" bias_std="${gyro_bias_std}"/></y>
+          <z><xacro:imu_noise stddev="${gyro_noise}" bias="${gyro_bias}" bias_std="${gyro_bias_std}"/></z>
+        </angular_velocity>
+        <linear_acceleration>
+          <x><xacro:imu_noise stddev="${accel_noise}" bias="${accel_bias}" bias_std="${accel_bias_std}"/></x>
+          <y><xacro:imu_noise stddev="${accel_noise}" bias="${accel_bias}" bias_std="${accel_bias_std}"/></y>
+          <z><xacro:imu_noise stddev="${accel_noise}" bias="${accel_bias}" bias_std="${accel_bias_std}"/></z>
+        </linear_acceleration>
+        <enable_orientation>false</enable_orientation>
+      </imu>
+    </sensor>
+  </gazebo>
+
+  <!-- Camera 2D C270: 640x480, goc ngang khoang 60 do -->
+  <gazebo reference="camera_link">
+    <sensor name="camera" type="camera">
+      <topic>camera/image_raw</topic>
+      <gz_frame_id>camera_optical_link</gz_frame_id>
+      <update_rate>15</update_rate>
+      <always_on>true</always_on>
+      <camera>
+        <camera_info_topic>camera/camera_info</camera_info_topic>
+        <horizontal_fov>1.047</horizontal_fov>
+        <image>
+          <width>640</width>
+          <height>480</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.05</near>
+          <far>10.0</far>
+        </clip>
+      </camera>
+    </sensor>
+  </gazebo>
+
+</robot>

@@ -1,0 +1,25 @@
+# Ghi de cho XE THAT (launch/real_base.launch.py nap SAU amm_base_controllers.yaml)
+#
+# Gioi han toc do ngay trong mecanum_drive_controller (tu ban 4.41.0, 07/2026).
+# Ban cu hon bo qua cac tham so nay, khong bao loi. Khi do gioi han bang teleop (-p linear:=0.08 ...).
+#
+# Muc vua phai cho xe 7.5 kg, uu tien chinh xac:
+#   0.08 m/s   → banh 2.0 rad/s (19 RPM), duoi tran firmware 25 RPM
+#   0.35 rad/s → banh 0.35 x 0.229 / 0.040 = 2.0 rad/s
+# Lenh ket hop (vd tien + ngang + xoay cung luc) co the vuot 25 RPM: STM32 thu nho DEU 4 banh,
+# xe van di dung huong, chi cham hon.
+# Gia toc do STM32 lo (30 RPM/s = 0.126 m/s2), khong dat o day.
+
+mecanum_drive_controller:
+  ros__parameters:
+    linear:
+      x:
+        max_velocity: 0.08
+        min_velocity: -0.08
+      y:
+        max_velocity: 0.08
+        min_velocity: -0.08
+    angular:
+      z:
+        max_velocity: 0.35
+        min_velocity: -0.35

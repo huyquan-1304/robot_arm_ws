@@ -1,0 +1,9 @@
+# Cau noi rieng cho che do drive_mode:=control
+# /cmd_vel, /odom, /tf, /joint_states do ros2_control lo, KHONG bridge tu Gazebo.
+
+# Vi tri that cua xe (chi de so sai so odometry, khong dua vao TF)
+- ros_topic_name: "/ground_truth/odom"
+  gz_topic_name: "/ground_truth/odom"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.Odometry"
+  direction: GZ_TO_ROS

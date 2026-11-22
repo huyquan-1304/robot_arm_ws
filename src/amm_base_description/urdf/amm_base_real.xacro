@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<!--
+  ros2_control cho XE THAT (drive_mode = real). Thay cho amm_base_gazebo.xacro.
+
+  mecanum_drive_controller → JointStateTopicSystem → /base/wheel_commands (velocity, rad/s)
+    → base_bridge_node.py → STM32 (base_link.c) → PID 4 banh
+  STM32 → base_bridge_node.py → /base/wheel_states (position rad, velocity rad/s)
+    → JointStateTopicSystem → controller tinh /odom
+
+  Cung plugin voi tay may (robot_arm_4_dof, use_real_hw), nhung topic RIENG (/base/...)
+  de 2 he khong lan lenh cua nhau.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="real_wheel_joint" params="name">
+    <joint name="${name}">
+      <command_interface name="velocity"/>
+      <!-- Gia tri ban dau 0 (khong de NaN) de RViz ve banh duoc truoc khi STM32 gui so xung -->
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+    </joint>
+  </xacro:macro>
+
+  <ros2_control name="AmmBaseRealSystem" type="system">
+    <hardware>
+      <plugin>joint_state_topic_hardware_interface/JointStateTopicSystem</plugin>
+      <param name="joint_commands_topic">/base/wheel_commands</param>
+      <param name="joint_states_topic">/base/wheel_states</param>
+      <!-- -1: phat lenh moi chu ky, ke ca khi dung yen (bridge dung lenh nay de biet controller con song) -->
+      <param name="trigger_joint_command_threshold">-1</param>
+    </hardware>
+    <xacro:real_wheel_joint name="front_left_wheel_joint"/>
+    <xacro:real_wheel_joint name="front_right_wheel_joint"/>
+    <xacro:real_wheel_joint name="rear_left_wheel_joint"/>
+    <xacro:real_wheel_joint name="rear_right_wheel_joint"/>
+  </ros2_control>
+
+</robot>

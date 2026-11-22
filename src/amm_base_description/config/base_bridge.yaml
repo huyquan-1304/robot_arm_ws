@@ -1,0 +1,21 @@
+# Tham so node base_bridge_node.py (xe that)
+# Day la noi DUY NHAT doi don vi ROS <-> firmware cho 4 banh. Sua o day, khong can nap lai STM32.
+#
+# Quy uoc firmware (base_link.h): thu tu FL, FR, RL, RR, duong = banh lan VE TRUOC.
+# Trung voi truc +Y cua 4 khop banh trong URDF, nen wheel_sign = 1.
+# Chi doi wheel_sign khi thu thuc te thay 1 banh nguoc chieu ma KHONG muon sua firmware
+# (nhung nen sua dau motor / encoder trong motor.h de console "m ..." cung dung).
+
+base_bridge:
+  ros__parameters:
+    baud: 115200
+    rate_hz: 50.0
+
+    joints: [front_left_wheel_joint, front_right_wheel_joint, rear_left_wheel_joint, rear_right_wheel_joint]
+    wheel_sign: [1.0, 1.0, 1.0, 1.0]
+
+    counts_per_rev: 7392        # 11 xung x 4 canh x hop so 168 = BASE_COUNTS_PER_REV
+    max_wheel_speed: 2.618      # rad/s = BASE_RPM_LIMIT 25 RPM, chi de canh bao
+
+    cmd_timeout_s: 0.3          # controller ngung gui lenh qua muc nay: gui toc do 0
+    state_timeout_s: 0.5        # mat STATE_BASE qua muc nay: TAT

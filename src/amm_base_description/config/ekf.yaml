@@ -1,0 +1,54 @@
+# EKF (robot_localization) cho xe AMM: gop odometry banh va con quay IMU.
+#
+#   /odom          (mecanum_drive_controller) → vx, vy, vyaw
+#   /imu/corrected (imu_bias_calibrator)      → vyaw
+#   ⇒ /odometry/filtered + TF odom → base_footprint
+#
+# Chi gop VAN TOC, khong gop vi tri: ca 2 nguon deu do tuong doi.
+# Trong luong moi nguon do covariance trong message quyet dinh:
+#   /odom : twist_covariance_diagonal trong amm_base_controllers.yaml (vyaw: 0.01 → σ = 0.1 rad/s)
+#   /imu  : imu_bias_calibrator dien max(k·σ_do, san)² (mac dinh σ ≈ 0.0037 rad/s)
+# ⇒ khi xoay, EKF tin con quay ~99.9 %. Khi xe dung yen, ca 2 deu bao ≈ 0.
+#
+# Thu tu 15 o trong *_config:
+#   [x,  y,  z,
+#    roll, pitch, yaw,
+#    vx, vy, vz,
+#    vroll, vpitch, vyaw,
+#    ax, ay, az]
+
+ekf_filter_node:
+  ros__parameters:
+    use_sim_time: true
+
+    frequency: 50.0
+    sensor_timeout: 0.1
+    two_d_mode: true           # san phang: bo z, roll, pitch
+    publish_tf: true           # EKF phat TF odom → base_footprint (controller da tat TF)
+    print_diagnostics: true
+
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_footprint
+    world_frame: odom
+
+    odom0: /odom
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  true,  false,
+                   false, false, true,
+                   false, false, false]
+    odom0_queue_size: 10
+    odom0_differential: false
+    odom0_relative: false
+
+    imu0: /imu/corrected
+    imu0_config: [false, false, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, true,
+                  false, false, false]
+    imu0_queue_size: 20
+    imu0_differential: false
+    imu0_relative: false
+    imu0_remove_gravitational_acceleration: true

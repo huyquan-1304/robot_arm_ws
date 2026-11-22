@@ -1,0 +1,91 @@
+<?xml version="1.0"?>
+<!--
+  amm_world.sdf - Phong 4 x 4 m de thu xe AMM: tuong cho lidar, 1 ke phia truoc, 1 vat can.
+  Ten world "amm_world" phai trung voi WORLD_NAME trong launch va gz_bridge.yaml.
+-->
+<sdf version="1.9">
+  <world name="amm_world">
+
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <!-- Cam bien can render: dung OGRE 1 giong project canh tay (on dinh tren VMware) -->
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.9 0.9 0.9 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry>
+          <material>
+            <ambient>0.8 0.8 0.8 1</ambient>
+            <diffuse>0.8 0.8 0.8 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 4 buc tuong cao 0.5 m -->
+    <model name="walls">
+      <static>true</static>
+      <link name="link">
+        <collision name="north_c"><pose>2.05 0 0.25 0 0 0</pose><geometry><box><size>0.1 4.2 0.5</size></box></geometry></collision>
+        <visual name="north_v"><pose>2.05 0 0.25 0 0 0</pose><geometry><box><size>0.1 4.2 0.5</size></box></geometry></visual>
+        <collision name="south_c"><pose>-2.05 0 0.25 0 0 0</pose><geometry><box><size>0.1 4.2 0.5</size></box></geometry></collision>
+        <visual name="south_v"><pose>-2.05 0 0.25 0 0 0</pose><geometry><box><size>0.1 4.2 0.5</size></box></geometry></visual>
+        <collision name="west_c"><pose>0 2.05 0.25 0 0 0</pose><geometry><box><size>4.0 0.1 0.5</size></box></geometry></collision>
+        <visual name="west_v"><pose>0 2.05 0.25 0 0 0</pose><geometry><box><size>4.0 0.1 0.5</size></box></geometry></visual>
+        <collision name="east_c"><pose>0 -2.05 0.25 0 0 0</pose><geometry><box><size>4.0 0.1 0.5</size></box></geometry></collision>
+        <visual name="east_v"><pose>0 -2.05 0.25 0 0 0</pose><geometry><box><size>4.0 0.1 0.5</size></box></geometry></visual>
+      </link>
+    </model>
+
+    <!-- Ke lay vat phia truoc xe, mat ke cao 0.30 m [UOC LUONG] -->
+    <model name="shelf">
+      <static>true</static>
+      <pose>1.2 0 0 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><pose>0 0 0.15 0 0 0</pose><geometry><box><size>0.3 0.6 0.3</size></box></geometry></collision>
+        <visual name="v">
+          <pose>0 0 0.15 0 0 0</pose>
+          <geometry><box><size>0.3 0.6 0.3</size></box></geometry>
+          <material><ambient>0.55 0.35 0.2 1</ambient><diffuse>0.55 0.35 0.2 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Vat can de thu lidar -->
+    <model name="obstacle">
+      <static>true</static>
+      <pose>-0.8 1.0 0 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><pose>0 0 0.2 0 0 0</pose><geometry><cylinder><radius>0.15</radius><length>0.4</length></cylinder></geometry></collision>
+        <visual name="v">
+          <pose>0 0 0.2 0 0 0</pose>
+          <geometry><cylinder><radius>0.15</radius><length>0.4</length></cylinder></geometry>
+          <material><ambient>0.2 0.6 0.3 1</ambient><diffuse>0.2 0.6 0.3 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>

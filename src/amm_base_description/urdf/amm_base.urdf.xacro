@@ -1,0 +1,271 @@
+<?xml version="1.0"?>
+<!--
+  amm_base.urdf.xacro - Xe AMM 4 banh Mecanum (ROS 2 Jazzy + Gazebo Harmonic)
+
+  Visual: mesh xuat tu SolidWorks (SW2URDF, package xe_amr, ban sua 2026-11-01 22:22).
+  Banh: truoc trai + sau phai = 75mm_huyen, truoc phai + sau trai = 75mm麦轮_右.
+  Nhin tu tren, con lan o dinh 4 banh tao thanh chu X.
+  Collision: hinh hop / hinh tru don gian, de Gazebo chay nhe va on dinh.
+
+  Cay frame (REP-105):
+    base_footprint (mat san, duoi tam 4 banh)
+      └ base_link (tam 4 banh, cao bang truc banh) = Origin_global trong CAD
+          ├ front_left/front_right/rear_left/rear_right_wheel_link (continuous, truc +Y)
+          ├ top_lid_link   (mat tren nap)
+          │   └ arm_mount  (goc canh tay O0)
+          ├ lidar_link     (mat phang quet cua lidar)
+          ├ imu_link
+          └ camera_link → camera_optical_link
+
+  Doi chieu ten voi file SW2URDF:
+    JLF/left_forward  → front_left_wheel_joint/link
+    JRF/right_forward → front_right_wheel_joint/link
+    JLB/left_back     → rear_left_wheel_joint/link
+    JRB/right_back    → rear_right_wheel_joint/link
+    lidar             → lidar_link
+
+  Don vi: m, kg, rad. So danh dau [UOC LUONG] la so tam, can thay bang so that.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro"
+       xmlns:gz="http://gazebosim.org/schema"
+       name="amm_base">
+
+  <!--
+    drive_mode:
+      control  (mac dinh): 4 banh quay that qua ros2_control + mecanum_drive_controller
+      velocity           : Gazebo keo thang than xe (che do ngay 1), dung de doi chieu khi loi
+      real               : XE THAT, ros2_control noi STM32 qua topic (amm_base_real.xacro),
+                           khong co phan Gazebo. Dung voi launch/real_base.launch.py
+  -->
+  <xacro:arg name="drive_mode" default="control"/>
+  <!-- use_ekf (chi co tac dung khi drive_mode = control):
+       true : EKF phat TF odom → base_footprint, controller tat TF
+       false: controller phat TF nhu truoc -->
+  <xacro:arg name="use_ekf" default="true"/>
+
+  <xacro:include filename="$(find amm_base_description)/urdf/inertial_macros.xacro"/>
+
+  <xacro:property name="mesh_dir" value="package://amm_base_description/meshes"/>
+
+  <!-- ================= THAM SO (lay tu CAD) ================= -->
+  <!-- Banh Mecanum 75 mm -->
+  <xacro:property name="wheel_radius" value="0.040"/>     <!-- banh 80 mm tam thoi (22/11/2026). Banh 75 mm: 0.0372 -->
+  <xacro:property name="wheel_mesh_radius" value="0.0372"/>  <!-- ban kinh cua mesh banh 75 mm xuat tu CAD -->
+  <xacro:property name="wheel_mesh_scale"  value="${wheel_radius / wheel_mesh_radius}"/>
+  <xacro:property name="wheel_width"  value="0.032"/>     <!-- do tu mesh -->
+  <xacro:property name="wheel_mass"   value="0.048"/>     <!-- theo SolidWorks, xem ghi chu vat lieu -->
+  <xacro:property name="wheel_x"      value="0.085"/>     <!-- tam banh theo X -->
+  <xacro:property name="wheel_y_face" value="0.162"/>     <!-- mat ngoai moay-o theo Y (goc he truc SW) -->
+  <!-- Mat giua be rong banh = diem con lan cham san. Dung cho dong hoc: l_y = wheel_y -->
+  <xacro:property name="wheel_y"      value="0.144"/>     <!-- ban ve CAD: vet banh 288 mm giua 2 mat phang giua banh -->
+  <!-- Truoc 23/11/2026 tinh l_y = wheel_y_face - wheel_width / 2 = 0.146 (gia dinh goc he truc SW nam o
+       mat ngoai moay-o). Ban ve CAD cho 144 mm nen dung so do truc tiep. Mesh banh van dat theo wheel_y_face -->
+
+
+  <!-- Than xe, do tu goc base_link (truc banh) -->
+  <xacro:property name="body_x_min"   value="-0.175"/>
+  <xacro:property name="body_x_max"   value="0.175"/>
+  <xacro:property name="body_half_w"  value="0.130"/>
+  <xacro:property name="body_z_min"   value="-0.020"/>    <!-- day khung (bo qua gia do dong co) -->
+  <xacro:property name="lid_top"      value="0.170"/>     <!-- mat tren nap -->
+  <xacro:property name="lidar_plate_x_max" value="0.2147"/>
+  <xacro:property name="body_mass"    value="4.106"/>     <!-- theo SolidWorks -->
+
+  <!-- Lidar RPLIDAR, goc he truc SW dat o dinh lidar -->
+  <xacro:property name="lidar_x"      value="0.172"/>
+  <xacro:property name="lidar_y"      value="0.0"/>       <!-- CAD: -0.0001159, lam tron -->
+  <xacro:property name="lidar_top_z"  value="0.2277"/>
+  <!-- Khoang cach tu dinh lidar xuong mat phang quet. [CHUA CO SO] dang de 0 -->
+  <xacro:property name="lidar_scan_drop" value="0.0"/>
+  <xacro:property name="lidar_mass"      value="0.17"/>  <!-- [UOC LUONG] RPLIDAR A1 -->
+
+  <!-- Dong hoc Mecanum, dung chung cho controller (config/amm_base_controllers.yaml):
+       wheels_radius = wheel_radius = 0.0372
+       sum_of_robot_center_projection_on_X_Y_axis = wheel_x + wheel_y = 0.085 + 0.146 = 0.231
+       Doi so o day thi phai doi ca trong file yaml -->
+
+  <!-- Ten link chinh sau khi Gazebo gop cac khop fixed (base_link gop vao base_footprint).
+       Huong ma sat banh duoc khai bao trong he truc link nay -->
+  <xacro:property name="gz_body_link" value="base_footprint"/>
+
+  <!-- Goc canh tay J1 tren nap: x_m = 55 mm, y_m = 30 mm (thong so co khi 2026-10-05) [CAN DO LAI TREN CAD MOI] -->
+  <xacro:property name="arm_x" value="0.055"/>
+  <xacro:property name="arm_y" value="0.030"/>
+
+  <!-- Camera 2D (C270) mep truoc tang duoi [UOC LUONG], chua co trong CAD -->
+  <xacro:property name="camera_x"       value="0.175"/>
+  <xacro:property name="camera_z_floor" value="0.080"/>
+
+  <!-- ================= MAU ================= -->
+  <material name="silver"><color rgba="0.75 0.75 0.75 1"/></material>
+  <material name="wheel"> <color rgba="0.79 0.82 0.93 1"/></material>
+  <material name="black"> <color rgba="0.08 0.08 0.08 1"/></material>
+  <material name="dark">  <color rgba="0.20 0.20 0.22 1"/></material>
+  <material name="orange"><color rgba="0.95 0.55 0.10 1"/></material>
+
+  <!-- ================= BASE ================= -->
+  <link name="base_footprint"/>
+
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 ${wheel_radius}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="base_link">
+    <!-- Khoi luong va quan tinh lay nguyen tu SolidWorks -->
+    <inertial>
+      <origin xyz="0.000580 0 0.087407" rpy="0 0 0"/>
+      <mass value="${body_mass}"/>
+      <inertia ixx="0.007684" ixy="0" ixz="0"
+               iyy="0.018555" iyz="0"
+               izz="0.025484"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="${mesh_dir}/base_link.STL"/></geometry>
+      <material name="silver"/>
+    </visual>
+    <!-- Khoi than chinh -->
+    <collision>
+      <origin xyz="${(body_x_min + body_x_max) / 2} 0 ${(body_z_min + lid_top) / 2}"/>
+      <geometry>
+        <box size="${body_x_max - body_x_min} ${2 * body_half_w} ${lid_top - body_z_min}"/>
+      </geometry>
+    </collision>
+    <!-- Tam nho ra phia truoc de gan lidar -->
+    <collision>
+      <origin xyz="${(body_x_max + lidar_plate_x_max) / 2} 0 ${lid_top - 0.0025}"/>
+      <geometry><box size="${lidar_plate_x_max - body_x_max} 0.09 0.005"/></geometry>
+    </collision>
+  </link>
+
+  <!-- ================= BANH MECANUM ================= -->
+  <!--
+    Frame banh dat tai mat giua be rong banh, cung huong voi base_link.
+    Truc quay +Y cho ca 4 banh: goc duong = banh lan ve phia truoc.
+    Mesh SW co goc o mat ngoai moay-o va xoay -90 do quanh X, nen visual can doi lai.
+  -->
+  <xacro:macro name="mecanum_wheel" params="prefix sx sy mesh">
+    <link name="${prefix}_wheel_link">
+      <visual>
+        <origin xyz="0 ${sy * (wheel_y_face - wheel_y)} 0" rpy="${-pi / 2} 0 0"/>
+        <geometry>
+          <mesh filename="${mesh_dir}/${mesh}"
+                scale="${wheel_mesh_scale} ${wheel_mesh_scale} ${wheel_mesh_scale}"/>
+        </geometry>
+        <material name="wheel"/>
+      </visual>
+      <!-- Hinh cau: 1 diem tiep xuc voi san, giong vi du Mecanum cua Gazebo Harmonic.
+           Ma sat dinh huong 45 do khai bao trong amm_base_gazebo.xacro -->
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry><sphere radius="${wheel_radius}"/></geometry>
+      </collision>
+      <xacro:inertial_cylinder_y mass="${wheel_mass}" radius="${wheel_radius}" length="${wheel_width}"/>
+    </link>
+
+    <joint name="${prefix}_wheel_joint" type="continuous">
+      <parent link="base_link"/>
+      <child link="${prefix}_wheel_link"/>
+      <origin xyz="${sx * wheel_x} ${sy * wheel_y} 0" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+      <dynamics damping="0.01" friction="0.0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:mecanum_wheel prefix="front_left"  sx="1"  sy="1"  mesh="left_forward.STL"/>
+  <xacro:mecanum_wheel prefix="front_right" sx="1"  sy="-1" mesh="right_forward.STL"/>
+  <xacro:mecanum_wheel prefix="rear_left"   sx="-1" sy="1"  mesh="left_back.STL"/>
+  <xacro:mecanum_wheel prefix="rear_right"  sx="-1" sy="-1" mesh="right_back.STL"/>
+
+  <!-- ================= NAP TREN VA DIEM GHEP CANH TAY ================= -->
+  <link name="top_lid_link"/>
+  <joint name="top_lid_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="top_lid_link"/>
+    <origin xyz="0 0 ${lid_top}"/>
+  </joint>
+
+  <!-- Trung voi base_link cua canh tay (O0) khi ghep tay -->
+  <link name="arm_mount">
+    <visual>
+      <origin xyz="0 0 0.001"/>
+      <geometry><cylinder radius="0.045" length="0.002"/></geometry>
+      <material name="orange"/>
+    </visual>
+  </link>
+  <joint name="arm_mount_joint" type="fixed">
+    <parent link="top_lid_link"/>
+    <child link="arm_mount"/>
+    <origin xyz="${arm_x} ${arm_y} 0"/>
+  </joint>
+
+  <!-- ================= LIDAR ================= -->
+  <!-- lidar_link dat tai mat phang quet. Mesh va quan tinh SW tinh tu dinh lidar -->
+  <link name="lidar_link">
+    <visual>
+      <origin xyz="0 0 ${lidar_scan_drop}" rpy="0 0 0"/>
+      <geometry><mesh filename="${mesh_dir}/lidar.STL"/></geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${lidar_scan_drop - 0.0275}"/>
+      <geometry><cylinder radius="0.035" length="0.055"/></geometry>
+    </collision>
+    <!-- SolidWorks bao 1.33 kg (chua gan dung vat lieu). Dung tam 0.17 kg cua RPLIDAR A1 [UOC LUONG].
+         1.33 kg dat o mui xe lam lech tai trong 4 banh, xe Mecanum mo phong se bi troi -->
+    <xacro:inertial_cylinder_z mass="${lidar_mass}" radius="0.035" length="0.055">
+      <origin xyz="0 0 ${lidar_scan_drop - 0.0275}"/>
+    </xacro:inertial_cylinder_z>
+  </link>
+  <joint name="lidar_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="lidar_link"/>
+    <origin xyz="${lidar_x} ${lidar_y} ${lidar_top_z - lidar_scan_drop}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ================= IMU [UOC LUONG vi tri] ================= -->
+  <link name="imu_link">
+    <visual>
+      <geometry><box size="0.025 0.020 0.004"/></geometry>
+      <material name="orange"/>
+    </visual>
+  </link>
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <origin xyz="0 0 0"/>
+  </joint>
+
+  <!-- ================= CAMERA 2D [UOC LUONG vi tri] ================= -->
+  <link name="camera_link">
+    <visual>
+      <origin xyz="-0.012 0 0"/>
+      <geometry><box size="0.024 0.070 0.030"/></geometry>
+      <material name="dark"/>
+    </visual>
+  </link>
+  <joint name="camera_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="camera_link"/>
+    <origin xyz="${camera_x} 0 ${camera_z_floor - wheel_radius}"/>
+  </joint>
+
+  <!-- Frame quang hoc theo quy uoc ROS: Z ra truoc, X sang phai, Y xuong duoi -->
+  <link name="camera_optical_link"/>
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera_link"/>
+    <child link="camera_optical_link"/>
+    <origin xyz="0 0 0" rpy="${-pi / 2} 0 ${-pi / 2}"/>
+  </joint>
+
+  <!-- ================= GAZEBO / XE THAT ================= -->
+  <xacro:if value="${'$(arg drive_mode)' == 'real'}">
+    <xacro:include filename="$(find amm_base_description)/urdf/amm_base_real.xacro"/>
+  </xacro:if>
+  <xacro:unless value="${'$(arg drive_mode)' == 'real'}">
+    <xacro:include filename="$(find amm_base_description)/urdf/amm_base_gazebo.xacro"/>
+  </xacro:unless>
+
+</robot>
