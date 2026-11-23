@@ -4,6 +4,13 @@
   /cmd_vel → mecanum_drive_controller → /base/wheel_commands → base_bridge → STM32 → 4 motor
   4 encoder → STM32 → base_bridge → /base/wheel_states → mecanum_drive_controller → /odom + TF
 
+IMU + EKF (tham so use_ekf, chi voi hw:=real):
+  use_ekf:=false  (mac dinh) controller phat /odom va TF odom → base_footprint, giong luc chua co IMU.
+  use_ekf:=true   them wit_imu_node (IMU USB) → imu_bias_calibrator → ekf_filter_node.
+                  EKF phat /odometry/filtered va TF. Controller tat TF.
+                  DE XE DUNG YEN ~5 s sau khi khoi dong: calibrator do bias con quay.
+  imu_port:=/dev/ttyUSB0
+
 Che do (tham so hw):
   hw:=real      Xe that qua USB (port:=/dev/ttyACM0). Mac dinh TAT, phai goi ~/enable.
   hw:=loopback  Gia lap STM32 trong node base_bridge, khong can phan cung. Tu BAT.
@@ -12,6 +19,7 @@ Che do (tham so hw):
 Chay:
   ros2 launch amm_base_description real_base.launch.py                       # xe that
   ros2 launch amm_base_description real_base.launch.py hw:=loopback rviz:=true
+  ros2 launch amm_base_description real_base.launch.py use_ekf:=true       # xe that + IMU + EKF
 
   # Terminal 2, xe that: bat xe
   ros2 service call /base_bridge/enable std_srvs/srv/SetBool "{data: true}"
@@ -48,13 +56,17 @@ def launch_setup(context, *args, **kwargs):
     use_rviz = LaunchConfiguration('rviz').perform(context).lower() == 'true'
     auto_enable = LaunchConfiguration('auto_enable').perform(context).lower()
     auto_enable = (hw == 'loopback') if auto_enable == 'auto' else auto_enable == 'true'
+    use_ekf = LaunchConfiguration('use_ekf').perform(context).lower() == 'true'
+    imu_port = LaunchConfiguration('imu_port').perform(context)
+    if use_ekf and hw != 'real':
+        raise RuntimeError('use_ekf:=true can IMU that, chi dung voi hw:=real')
 
     share = Path(get_package_share_directory(PACKAGE_NAME))
     config = share / 'config'
 
     robot_description = xacro.process_file(
         str(share / 'urdf' / 'amm_base.urdf.xacro'),
-        mappings={'drive_mode': 'real', 'use_ekf': 'false'},
+        mappings={'drive_mode': 'real', 'use_ekf': str(use_ekf).lower()},
     ).toxml()
 
     actions = [
@@ -82,6 +94,7 @@ def launch_setup(context, *args, **kwargs):
             parameters=[
                 str(config / 'amm_base_controllers.yaml'),
                 str(config / 'amm_base_controllers_real.yaml'),   # ghi de: gioi han toc do xe that
+                *([str(config / 'amm_base_controllers_ekf.yaml')] if use_ekf else []),  # EKF phat TF
             ],
             # Cung ten topic voi mo phong: teleop, RViz, Nav2 khong phai sua
             remappings=[
@@ -110,6 +123,35 @@ def launch_setup(context, *args, **kwargs):
         RegisterEventHandler(OnProcessExit(target_action=jsb, on_exit=[mecanum])),
     ]
 
+    if use_ekf:
+        actions.append(Node(
+            package=PACKAGE_NAME,
+            executable='wit_imu_node.py',
+            name='wit_imu',
+            parameters=[{'port': imu_port, 'baud': 115200, 'frame_id': 'imu_link'}],
+            output='screen',
+        ))
+        calibrator = Node(
+            package=PACKAGE_NAME,
+            executable='imu_bias_calibrator.py',
+            parameters=[{
+                'input_topic': '/imu/data_raw',
+                'output_topic': '/imu/corrected',
+                'frame_id': 'imu_link',
+                'use_sim': False,
+            }],
+            output='screen',
+        )
+        ekf = Node(
+            package='robot_localization',
+            executable='ekf_node',
+            name='ekf_filter_node',
+            parameters=[str(config / 'ekf.yaml'), {'use_sim_time': False}],
+            output='screen',
+        )
+        # Sau khi controller chay (/odom co), calibrator cho xe dung yen roi do bias
+        actions.append(RegisterEventHandler(OnProcessExit(target_action=mecanum, on_exit=[calibrator, ekf])))
+
     if use_rviz:
         actions.append(Node(
             package='rviz2',
@@ -129,6 +171,9 @@ def generate_launch_description():
                               description='Cong USB CDC cua STM32 (chi dung khi hw:=real)'),
         DeclareLaunchArgument('auto_enable', default_value='auto',
                               description='auto: loopback tu BAT, xe that phai goi ~/enable | true | false'),
+        DeclareLaunchArgument('use_ekf', default_value='false',
+                              description='true: them IMU (USB) + hieu chuan bias + EKF (chi hw:=real)'),
+        DeclareLaunchArgument('imu_port', default_value='/dev/ttyUSB0', description='Cong USB cua IMU'),
         DeclareLaunchArgument('rviz', default_value='false',
                               description='Mo RViz tren may nay (Pi khong man hinh thi de false)'),
         OpaqueFunction(function=launch_setup),

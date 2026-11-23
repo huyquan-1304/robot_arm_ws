@@ -225,7 +225,10 @@
     <origin xyz="${lidar_x} ${lidar_y} ${lidar_top_z - lidar_scan_drop}" rpy="0 0 0"/>
   </joint>
 
-  <!-- ================= IMU [UOC LUONG vi tri] ================= -->
+  <!-- ================= IMU Hiwonder IM10A (do tren xe that 23/11/2026) =================
+       Giua tam xe, cao hon truc banh 39 mm. MAT CHU UP XUONG, mui ten X chi ve TRUOC xe
+       ⇒ lat 180° quanh X: truc IMU X = truoc, Y = PHAI, Z = XUONG.
+       Xe xoay trai thi con quay Z bao AM: dung. EKF doc TF nay va tu xoay ve truc xe. -->
   <link name="imu_link">
     <visual>
       <geometry><box size="0.025 0.020 0.004"/></geometry>
@@ -235,7 +238,7 @@
   <joint name="imu_joint" type="fixed">
     <parent link="base_link"/>
     <child link="imu_link"/>
-    <origin xyz="0 0 0"/>
+    <origin xyz="0 0 0.039" rpy="${pi} 0 0"/>
   </joint>
 
   <!-- ================= CAMERA 2D [UOC LUONG vi tri] ================= -->

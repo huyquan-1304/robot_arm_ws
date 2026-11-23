@@ -311,11 +311,14 @@ class BaseBridge(Node):
     def _on_cmd(self, msg: JointState):
         if not msg.velocity:
             return
+        # Moi goi la lenh DAY DU cho ca 4 banh: banh khong co ten trong goi = 0.
+        # (Khong giu lenh cu: truoc day thu "pub" rieng FR sau khi thu FL thi FL van chay theo lenh cu.)
         vel = dict(zip(msg.name, msg.velocity))
+        cmd = [0.0] * 4
         for i, j in enumerate(self.joints):
-            if j in vel:
-                v = vel[j]
-                self.cmd[i] = v if math.isfinite(v) else 0.0   # NaN: controller chua chay
+            v = vel.get(j, 0.0)
+            cmd[i] = v if math.isfinite(v) else 0.0   # NaN: controller chua chay
+        self.cmd = cmd
         self.cmd_time = self.get_clock().now()
 
     def _srv_enable(self, req, res):
@@ -388,9 +391,9 @@ class BaseBridge(Node):
                 self.get_logger().warn('Co lenh chay nhung xe dang TAT. Goi ~/enable',
                                        throttle_duration_sec=5.0)
             return
-        cmd = self.cmd
         if self.cmd_time is None or (now - self.cmd_time).nanoseconds * 1e-9 > self.cmd_timeout:
-            cmd = [0.0] * 4
+            self.cmd = [0.0] * 4                 # lenh cu het han: xoa han, khong de lan sau dung lai
+        cmd = self.cmd
         peak = max(abs(c) for c in cmd)
         if peak > self.max_w * 1.001:
             self.get_logger().warn(

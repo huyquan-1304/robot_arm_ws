@@ -21,6 +21,8 @@ install(
     scripts/odom_error_monitor.py
     scripts/base_bridge_node.py
     scripts/odom_check.py
+    scripts/wit_imu_node.py
+    scripts/wit_imu_config.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

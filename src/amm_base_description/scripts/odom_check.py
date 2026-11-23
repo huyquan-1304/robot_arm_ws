@@ -5,7 +5,9 @@ Moc = vi tri luc node nhan /odom dau tien. Muon do lai tu dau: Ctrl+C roi chay l
 
 Moi 0.5 s in:
   dx, dy  : di chuyen theo truc xe LUC XUAT PHAT (mm). dx = tien, dy = sang trai
-  yaw     : goc xoay CONG DON (do), khong bi cat o 180, dung cho bai xoay 5 vong
+  yaw     : goc xoay CONG DON (do) theo odometry banh, khong bi cat o 180, dung cho bai xoay 5 vong
+  ekf     : goc xoay cong don theo EKF (/odometry/filtered, chu yeu tu con quay IMU).
+            Chi hien khi chay real_base.launch.py use_ekf:=true
   s       : quang duong da di (mm)
   vong    : so vong quay cua tung banh tu luc xuat phat, tinh tu so xung (/joint_states)
 
@@ -43,7 +45,10 @@ class OdomCheck(Node):
         self.pose = None
         self.wheel0 = None
         self.wheel = None
+        self.ekf_prev = None
+        self.ekf_yaw = None
         self.create_subscription(Odometry, '/odom', self.on_odom, 20)
+        self.create_subscription(Odometry, '/odometry/filtered', self.on_ekf, 20)
         self.create_subscription(JointState, '/joint_states', self.on_js, 20)
         self.create_timer(0.5, self.report)
         self.get_logger().info('Cho /odom ... Moc = vi tri luc nhan goi dau tien')
@@ -56,6 +61,15 @@ class OdomCheck(Node):
         self.yaw_sum += wrap(cur[2] - self.prev[2])
         self.dist += math.hypot(cur[0] - self.prev[0], cur[1] - self.prev[1])
         self.prev = self.pose = cur
+
+    def on_ekf(self, msg):
+        if self.x0 is None:            # cung moc voi odom: bat dau dem khi odom da co moc
+            return
+        yaw = yaw_of(msg.pose.pose.orientation)
+        if self.ekf_prev is None:
+            self.ekf_prev, self.ekf_yaw = yaw, 0.0
+        self.ekf_yaw += wrap(yaw - self.ekf_prev)
+        self.ekf_prev = yaw
 
     def on_js(self, msg):
         pos = dict(zip(msg.name, msg.position))
@@ -72,7 +86,10 @@ class OdomCheck(Node):
         dx = math.cos(th0) * ddx + math.sin(th0) * ddy       # quy ve truc xe luc xuat phat
         dy = -math.sin(th0) * ddx + math.cos(th0) * ddy
         line = (f'dx {dx * 1000:+8.1f} mm | dy {dy * 1000:+8.1f} mm | '
-                f'yaw {math.degrees(self.yaw_sum):+8.2f} do | s {self.dist * 1000:7.1f} mm')
+                f'yaw {math.degrees(self.yaw_sum):+8.2f} do | ')
+        if self.ekf_yaw is not None:
+            line += f'ekf {math.degrees(self.ekf_yaw):+8.2f} do | '
+        line += f's {self.dist * 1000:7.1f} mm'
         if self.wheel is not None:
             rev = [(w - w0) / (2.0 * math.pi) for w, w0 in zip(self.wheel, self.wheel0)]
             line += ' | vong ' + ' '.join(f'{n} {r:+.3f}' for (n, _), r in zip(WHEELS, rev))
