@@ -12,16 +12,30 @@ LENH
         Dat 115200 baud, 100 Hz, chi gui gia toc + toc do goc + goc, che do 6 truc (khong dung tu ke).
         Xong thi RUT USB IMU, cam lai, chay "scan" de chac chan module da LUU cau hinh.
 
-Tuy chon: --port /dev/ttyUSB0  --baud 115200  --rate 100
+  ros2 run amm_base_description wit_imu_config.py read
+        CHI DOC cac thanh ghi lien quan con quay (khong thay doi gi). Lan dau: luu gia tri goc vao
+        ~/.wit_imu_regs_backup.json de khoi phuc ve sau.
+  ros2 run amm_base_description wit_imu_config.py autocal off
+        TAT TAM tu hieu chuan / phat hien dung yen cua con quay (GYROCALITHR = 0, WZSTATIC = 0). KHONG LUU:
+        rut USB IMU cam lai la tro ve nhu cu (kiem tra lai bang "read"). Them --save neu muon luu han.
+  ros2 run amm_base_description wit_imu_config.py autocal on
+        Ghi lai gia tri GOC tu file sao luu (khong luu, tru khi --save).
+
+Tuy chon: --port /dev/ttyUSB0  --baud 115200  --rate 100  --save
 
 Thanh ghi (WIT standard protocol): ghi = FF AA dia_chi byte_thap byte_cao
   0x69 KEY  (mo khoa: 88 B5)   0x00 SAVE (0 = luu)   0x02 RSW (loai goi)   0x03 RRATE (tan so)
   0x04 BAUD                    0x24 AXIS6 (1 = 6 truc)
+  0x0A GZOFFSET (diem 0 con quay Z, /10000 °/s)   0x61 GYROCALITHR (nguong dung yen tu hieu chuan, /1000 °/s)
+  0x63 GYROCALTIME (ms)        0x6E WZTIME (ms)   0x6F WZSTATIC (nguong dung yen toc do goc, /1000 °/s)
+  Doc = FF AA 27 dia_chi 00 → module tra goi 0x55 0x5F chua 4 thanh ghi lien tiep tu dia_chi.
 Neu module khong nhan lenh: dung phan mem cau hinh cua hang tren Windows, dat 115200 baud, 100 Hz.
 """
 
 import argparse
+import json
 import math
+import os
 import struct
 import sys
 import time
@@ -165,9 +179,100 @@ def cmd_setup(port, baud_target, rate):
               'thu --rate 200, hoac dung phan mem cua hang.')
 
 
+REGS = [  # (dia chi, ten, he so → don vi, don vi)
+    (0x02, 'RSW (loai goi)', None, ''), (0x03, 'RRATE (ma tan so)', None, ''), (0x04, 'BAUD (ma)', None, ''),
+    (0x0A, 'GZOFFSET diem 0 con quay Z', 1e-4, '°/s'), (0x24, 'AXIS6 (1 = 6 truc)', None, ''),
+    (0x61, 'GYROCALITHR nguong tu hieu chuan', 1e-3, '°/s'), (0x63, 'GYROCALTIME thoi gian tu hieu chuan', 1, 'ms'),
+    (0x6E, 'WZTIME thoi gian dung yen', 1, 'ms'), (0x6F, 'WZSTATIC nguong dung yen', 1e-3, '°/s'),
+]
+AUTOCAL_REGS = (0x61, 0x6F)
+BACKUP = os.path.expanduser('~/.wit_imu_regs_backup.json')
+
+
+def read_reg(ser, addr, tries=3):
+    """Doc 1 thanh ghi (gia tri u16). None neu module khong tra loi."""
+    for _ in range(tries):
+        ser.reset_input_buffer()
+        ser.write(bytes([0xFF, 0xAA, 0x27, addr & 0xFF, 0x00]))
+        ser.flush()
+        buf, t_end = bytearray(), time.monotonic() + 0.3
+        while time.monotonic() < t_end:
+            buf += ser.read(256)
+            for t, v in parse(buf):
+                if t == 0x5F:
+                    return v[0] & 0xFFFF
+    return None
+
+
+def read_all(ser):
+    return {addr: read_reg(ser, addr) for addr, *_ in REGS}
+
+
+def print_regs(vals, title):
+    print(f'\n{title}')
+    for addr, name, k, unit in REGS:
+        v = vals.get(addr)
+        if v is None:
+            print(f'  0x{addr:02X} {name:36s}: (khong doc duoc)')
+            continue
+        sv = v - 65536 if v > 32767 else v
+        extra = f' = {sv * k:g} {unit}' if k else ''
+        print(f'  0x{addr:02X} {name:36s}: {v:5d} (0x{v:04X}){extra}')
+
+
+def open_found(port, baud):
+    b = find_baud(port, baud)
+    if b is None:
+        sys.exit(f'Khong thay IMU tren {port}. Tat wit_imu_node / launch truoc khi chay lenh nay.')
+    return open_port(port, b), b
+
+
+def cmd_read(port, baud):
+    ser, b = open_found(port, baud)
+    with ser:
+        vals = read_all(ser)
+    print_regs(vals, f'Thanh ghi IMU ({port} @ {b} baud):')
+    if all(v is None for v in vals.values()):
+        print('Module khong tra loi lenh doc (0xFF 0xAA 0x27). Ban nay co the khong ho tro doc thanh ghi.')
+        return vals
+    if not os.path.exists(BACKUP):
+        with open(BACKUP, 'w') as f:
+            json.dump({f'0x{a:02X}': v for a, v in vals.items() if v is not None}, f, indent=1)
+        print(f'\nDa luu gia tri GOC vao {BACKUP} (dung cho "autocal on").')
+    else:
+        print(f'\n(Da co file sao luu {BACKUP}, khong ghi de.)')
+    return vals
+
+
+def cmd_autocal(port, baud, on, do_save):
+    if not os.path.exists(BACKUP):
+        print('Chua co sao luu gia tri goc: doc truoc...')
+        if all(v is None for v in cmd_read(port, baud).values()):
+            sys.exit('Khong doc duoc thanh ghi, dung lai (khong ghi gi).')
+    backup = {int(k, 16): v for k, v in json.load(open(BACKUP)).items()}
+    target = {a: (backup.get(a, 0) if on else 0) for a in AUTOCAL_REGS}
+    ser, b = open_found(port, baud)
+    with ser:
+        unlock(ser)
+        for a, v in target.items():
+            write_reg(ser, a, v)
+        if do_save:
+            save(ser)
+        time.sleep(0.2)
+        vals = read_all(ser)
+    print_regs(vals, f'Sau khi {"BAT" if on else "TAT"} tu hieu chuan ({"DA LUU" if do_save else "CHUA LUU, mat khi rut dien"}):')
+    bad = [a for a, v in target.items() if vals.get(a) is not None and vals[a] != v]
+    if bad:
+        print('Canh bao: thanh ghi ' + ', '.join(f'0x{a:02X}' for a in bad) + ' khong nhan gia tri moi.')
+    elif not do_save:
+        print('\nTam thoi. Rut USB IMU, cam lai, chay "read" de xac nhan da tro ve gia tri goc.')
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('cmd', choices=['scan', 'setup'])
+    ap.add_argument('cmd', choices=['scan', 'setup', 'read', 'autocal'])
+    ap.add_argument('state', nargs='?', choices=['on', 'off'], help='cho lenh autocal')
+    ap.add_argument('--save', action='store_true', help='luu vinh vien vao module (autocal)')
     ap.add_argument('--port', default='/dev/ttyUSB0')
     ap.add_argument('--baud', type=int, default=115200, help='baud muon dat (setup)')
     ap.add_argument('--rate', type=int, default=100, help='tan so muon dat, Hz (setup)')
@@ -180,6 +285,12 @@ def main():
                 sys.exit(f'Khong nhan duoc goi WIT tu {a.port} o cac baud {BAUDS}. '
                          'Kiem tra cap, cong (ls /dev/ttyUSB*), va tat wit_imu_node.')
             report(a.port, b)
+        elif a.cmd == 'read':
+            cmd_read(a.port, a.baud)
+        elif a.cmd == 'autocal':
+            if a.state is None:
+                sys.exit('Vd: wit_imu_config.py autocal off')
+            cmd_autocal(a.port, a.baud, a.state == 'on', a.save)
         else:
             cmd_setup(a.port, a.baud, a.rate)
     except serial.SerialException as e:
