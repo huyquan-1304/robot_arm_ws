@@ -13,6 +13,11 @@ PHAT
   Truc trong message = truc IN TREN VO module. Huong gan tren xe khai bao trong URDF (imu_joint),
   EKF tu xoay ve truc xe qua TF. KHONG doi dau trong node nay.
 
+HE SO CON QUAY (gyro_scale)
+  Con quay MEMS co the sai he so ti le vai phan tram. Do: xoay xe 5 vong, do goc that tren san, so goc EKF.
+  IM10A tren xe AMM (25/11/2026): Q EKF 1803.29° / that ~1803.5°, E EKF 1809.90° / that ~1810°
+  → khop trong sai so do (±0.1 %), giu gyro_scale = 1.0
+
 TAN SO
   Mac dinh module chay 9600 baud, ~10 Hz: qua cham cho EKF. Chay 1 lan:
       ros2 run amm_base_description wit_imu_config.py setup
@@ -78,6 +83,8 @@ class WitImuNode(Node):
         self.gyro_std = float(p('gyro_stddev', 0.0012).value)      # rad/s (~0.07 °/s, giong mo phong)
         self.acc_std = float(p('accel_stddev', 0.01).value)        # m/s2
         self.min_rate = float(p('min_rate_warn', 50.0).value)
+        # He so ti le con quay (do bang bai xoay 5 vong): toc do goc that = so doc x gyro_scale
+        self.gyro_scale = float(p('gyro_scale', 1.0).value)
 
         self.pub_imu = self.create_publisher(Imu, '/imu/data_raw', 50)
         self.pub_euler = self.create_publisher(Vector3Stamped, '/imu/euler_deg', 10)
@@ -168,7 +175,7 @@ class WitImuNode(Node):
             self.acc = (v[0] / 32768.0 * 16.0 * G, v[1] / 32768.0 * 16.0 * G, v[2] / 32768.0 * 16.0 * G)
             self.acc_time = time.monotonic()
         elif t == TYPE_GYRO:
-            self._publish_imu(now, [x / 32768.0 * 2000.0 * DEG for x in v[:3]])
+            self._publish_imu(now, [x / 32768.0 * 2000.0 * DEG * self.gyro_scale for x in v[:3]])
         elif t == TYPE_ANGLE:
             e = Vector3Stamped()
             e.header.stamp = now.to_msg()

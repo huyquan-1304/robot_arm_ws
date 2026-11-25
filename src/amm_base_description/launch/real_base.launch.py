@@ -128,7 +128,8 @@ def launch_setup(context, *args, **kwargs):
             package=PACKAGE_NAME,
             executable='wit_imu_node.py',
             name='wit_imu',
-            parameters=[{'port': imu_port, 'baud': 115200, 'frame_id': 'imu_link'}],
+            # gyro_scale: bai xoay 5 vong (25/11/2026) cho thay con quay khop goc that, khong can hieu chinh
+            parameters=[{'port': imu_port, 'baud': 115200, 'frame_id': 'imu_link', 'gyro_scale': 1.0}],
             output='screen',
         ))
         calibrator = Node(

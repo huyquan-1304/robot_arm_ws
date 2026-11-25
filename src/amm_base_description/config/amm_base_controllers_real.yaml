@@ -12,6 +12,14 @@
 
 mecanum_drive_controller:
   ros__parameters:
+    # HIEU CHINH XOAY tren xe that (25/11/2026), bai xoay 5 vong. Goc that = 1800° + phan lech do tren san:
+    #   Q (trai): odom 1774.72°, that ~1803.5° (vuot vach 3-4°) → k = 0.229 x 1774.72 / 1803.5 = 0.2253
+    #   E (phai): odom 1771.43°, that ~1810°   (vuot vach ~10°) → k = 0.229 x 1771.43 / 1810   = 0.2241
+    #   Lay 0.225. Con lan mecanum lam than xe xoay NHIEU hon ly thuyet ~1.7 %.
+    #   (IMU khop goc that ca 2 chieu: EKF 1803.29° va 1809.90°, nen con quay khong can hieu chinh.)
+    # Chi ghi de cho xe that. Mo phong van dung 0.229 (dung voi hinh hoc URDF ma Gazebo mo phong).
+    kinematics:
+      sum_of_robot_center_projection_on_X_Y_axis: 0.225
     linear:
       x:
         max_velocity: 0.08
