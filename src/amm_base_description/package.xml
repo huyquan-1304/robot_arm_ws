@@ -27,6 +27,8 @@
 
   <!-- Xe that (real_base.launch.py) -->
   <exec_depend>python3-serial</exec_depend>
+  <exec_depend>python3-matplotlib</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>std_srvs</exec_depend>
   <exec_depend>joint_state_topic_hardware_interface</exec_depend>

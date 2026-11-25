@@ -25,6 +25,7 @@ install(
     scripts/wit_imu_config.py
     scripts/heading_hold_node.py
     scripts/goto_test.py
+    scripts/kinematics_report.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
