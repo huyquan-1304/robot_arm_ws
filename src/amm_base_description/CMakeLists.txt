@@ -23,6 +23,7 @@ install(
     scripts/odom_check.py
     scripts/wit_imu_node.py
     scripts/wit_imu_config.py
+    scripts/heading_hold_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>amm_base_description</name>
-  <version>0.4.0</version>
+  <version>0.5.0</version>
   <description>URDF va mo phong Gazebo Harmonic cho xe AMM 4 banh Mecanum</description>
   <maintainer email="quangthangtran1905@gmail.com">Tran Quang Thang</maintainer>
   <license>MIT</license>

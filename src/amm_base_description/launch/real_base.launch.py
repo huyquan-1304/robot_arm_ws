@@ -11,6 +11,10 @@ IMU + EKF (tham so use_ekf, chi voi hw:=real):
                   DE XE DUNG YEN ~5 s sau khi khoi dong: calibrator do bias con quay.
   imu_port:=/dev/ttyUSB0
 
+GIU HUONG (tham so heading_hold, can use_ekf:=true):
+  heading_hold:=true  them heading_hold_node: /cmd_vel_raw → (bu xoay bang IMU) → /cmd_vel.
+                      Teleop / Nav2 phai phat len /cmd_vel_raw (teleop: -p topic:=/cmd_vel_raw).
+
 Che do (tham so hw):
   hw:=real      Xe that qua USB (port:=/dev/ttyACM0). Mac dinh TAT, phai goi ~/enable.
   hw:=loopback  Gia lap STM32 trong node base_bridge, khong can phan cung. Tu BAT.
@@ -20,6 +24,7 @@ Chay:
   ros2 launch amm_base_description real_base.launch.py                       # xe that
   ros2 launch amm_base_description real_base.launch.py hw:=loopback rviz:=true
   ros2 launch amm_base_description real_base.launch.py use_ekf:=true       # xe that + IMU + EKF
+  ros2 launch amm_base_description real_base.launch.py use_ekf:=true heading_hold:=true
 
   # Terminal 2, xe that: bat xe
   ros2 service call /base_bridge/enable std_srvs/srv/SetBool "{data: true}"
@@ -60,6 +65,9 @@ def launch_setup(context, *args, **kwargs):
     imu_port = LaunchConfiguration('imu_port').perform(context)
     if use_ekf and hw != 'real':
         raise RuntimeError('use_ekf:=true can IMU that, chi dung voi hw:=real')
+    heading_hold = LaunchConfiguration('heading_hold').perform(context).lower() == 'true'
+    if heading_hold and not use_ekf:
+        raise RuntimeError('heading_hold:=true can use_ekf:=true (lay huong tu EKF + IMU)')
 
     share = Path(get_package_share_directory(PACKAGE_NAME))
     config = share / 'config'
@@ -151,7 +159,16 @@ def launch_setup(context, *args, **kwargs):
             output='screen',
         )
         # Sau khi controller chay (/odom co), calibrator cho xe dung yen roi do bias
-        actions.append(RegisterEventHandler(OnProcessExit(target_action=mecanum, on_exit=[calibrator, ekf])))
+        after_mecanum = [calibrator, ekf]
+        if heading_hold:
+            after_mecanum.append(Node(
+                package=PACKAGE_NAME,
+                executable='heading_hold_node.py',
+                name='heading_hold',
+                parameters=[{'hold_heading': True, 'rate_loop': True}],
+                output='screen',
+            ))
+        actions.append(RegisterEventHandler(OnProcessExit(target_action=mecanum, on_exit=after_mecanum)))
 
     if use_rviz:
         actions.append(Node(
@@ -175,6 +192,8 @@ def generate_launch_description():
         DeclareLaunchArgument('use_ekf', default_value='false',
                               description='true: them IMU (USB) + hieu chuan bias + EKF (chi hw:=real)'),
         DeclareLaunchArgument('imu_port', default_value='/dev/ttyUSB0', description='Cong USB cua IMU'),
+        DeclareLaunchArgument('heading_hold', default_value='false',
+                              description='true: giu huong bang IMU (can use_ekf:=true). Teleop phat len /cmd_vel_raw'),
         DeclareLaunchArgument('rviz', default_value='false',
                               description='Mo RViz tren may nay (Pi khong man hinh thi de false)'),
         OpaqueFunction(function=launch_setup),
